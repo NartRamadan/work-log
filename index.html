@@ -1363,6 +1363,7 @@ $('importFile').addEventListener('change', async () => {
   }
 
   const add = { shifts: [], trips: [], expenses: [], odo: [] };
+  const upd = []; // רשומות שכבר קיימות, אבל בקובץ יש להן גרסה שונה (למשל נוסף ק"מ)
   let bad = 0, dup = 0;
   for (const kind of Object.keys(add)) {
     const list = Array.isArray(incoming[kind]) ? incoming[kind] : [];
@@ -1371,7 +1372,14 @@ $('importFile').addEventListener('change', async () => {
     list.forEach((r, i) => {
       if (!r || typeof r !== 'object' || !importRules[kind].ok(r)) { bad++; return; }
       const id = r.id ? String(r.id) : uid();
-      if (have.has(id)) { dup++; return; } // כבר יובא בעבר
+      if (have.has(id)) {
+        // כבר יובא בעבר. אם בקובץ יש גרסה שונה - נעדכן. אם זהה - מדלגים.
+        const cur = data[kind].find(x => x.id === id);
+        const next = { id, ...importRules[kind].pick(r, i) };
+        if (cur && JSON.stringify({ ...cur, ...next }) !== JSON.stringify(cur)) upd.push({ cur, next });
+        else dup++;
+        return;
+      }
       if (kind === 'odo') { if (odoDates.has(r.date)) { dup++; return; } odoDates.add(r.date); }
       have.add(id);
       add[kind].push({ id, ...importRules[kind].pick(r, i) });
@@ -1380,7 +1388,7 @@ $('importFile').addEventListener('change', async () => {
 
   const total = add.shifts.length + add.trips.length + add.expenses.length + add.odo.length;
   const extra = (dup ? ` ${dup} כבר קיימות.` : '') + (bad ? ` ${bad} לא תקינות.` : '');
-  if (!total) return setMsg(msg, 'err', 'אין בקובץ רשומות חדשות.' + extra);
+  if (!total && !upd.length) return setMsg(msg, 'err', 'אין בקובץ רשומות חדשות או מעודכנות.' + extra);
 
   const lines = [
     'בקובץ נמצאו רשומות חדשות:',
@@ -1389,6 +1397,7 @@ $('importFile').addEventListener('change', async () => {
     `הוצאות: ${add.expenses.length}`,
     `ימים עם מד אוץ: ${add.odo.length}`,
   ];
+  if (upd.length) lines.push(`רשומות קיימות שיתעדכנו: ${upd.length}`);
   // פרטים לדוח מהקובץ: נכנסים רק אם עוד לא מילאת אותם בעצמך.
   const inc = (incoming.settings && typeof incoming.settings === 'object') ? incoming.settings : {};
   const newName = !data.settings.name && isText(inc.name) ? inc.name.trim() : '';
@@ -1401,6 +1410,7 @@ $('importFile').addEventListener('change', async () => {
   if (!confirm(lines.join('\n'))) return setMsg(msg, '', 'הייבוא בוטל.');
 
   for (const kind of Object.keys(add)) data[kind].push(...add[kind]);
+  for (const u of upd) Object.assign(u.cur, u.next);
   const rate = incoming.settings && incoming.settings.kmRate;
   if (!data.settings.kmRate && posNum(rate)) {
     data.settings.kmRate = rate;
@@ -1410,12 +1420,13 @@ $('importFile').addEventListener('change', async () => {
   if (newTo) { data.settings.recipient = newTo; $('rTo').value = newTo; }
   save();
 
-  const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo].map(r => r.date).sort()[0];
+  const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo, ...upd.map(u => u.next)]
+    .map(r => r.date).sort()[0];
   showMonthOf(first);
   render();
   fillFrom();
   fillOdo();
-  setMsg(msg, 'ok', `יובאו ${total} רשומות.` + extra);
+  setMsg(msg, 'ok', `יובאו ${total} רשומות חדשות` + (upd.length ? `, עודכנו ${upd.length}` : '') + '.' + extra);
 });
 
 /* ===================== הפעלה ===================== */
