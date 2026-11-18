@@ -1152,10 +1152,11 @@ function renderDayCharts(series) {
     interactive: true,
     ink: SCREEN_INK,
     label: 'שעות וק״מ לפי יום בחודש',
+    // גרף בלי אף ערך (למשל ק"מ לפני שהתחלת למלא) לא מוצג בכלל.
     panels: [
       { title: 'שעות', color: 'var(--c-hours)', values: series.hours, fmt: hoursFmt },
       { title: 'ק״מ', color: 'var(--c-km)', values: series.km, fmt: fmtKm },
-    ],
+    ].filter(p => p.values.some(v => v > 0)),
   });
   const hl = box.querySelector('.hl');
   box.querySelectorAll('.hit').forEach(r => bindTip(r, () => dayInfo(+r.dataset.day, series),
