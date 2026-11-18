@@ -1372,21 +1372,29 @@ function renderReport(chartWidth) {
     .forEach(t => { visits[t.to] = (visits[t.to] || 0) + 1; });
   let parts = Object.entries(visits).sort((a, b) => b[1] - a[1]);
   const totalVisits = parts.reduce((a, p) => a + p[1], 0);
-  if (parts.length > 6) parts = [...parts.slice(0, 5), ['אחר', parts.slice(5).reduce((a, p) => a + p[1], 0)]];
+  // "אחר" שומר גם את שמות המקומות שבתוכו, כדי להציג אותם במקרא.
+  if (parts.length > 6) {
+    const rest = parts.slice(5);
+    parts = [...parts.slice(0, 5), ['אחר', rest.reduce((a, p) => a + p[1], 0), rest.map(p => p[0])]];
+  }
+  const restNames = names => names.length > 6
+    ? `${names.slice(0, 6).join(', ')} ועוד ${names.length - 6}` : names.join(', ');
   const splitHtml = totalVisits ? `
     <div class="split">
       <div class="split-title">לאן נסעתי החודש <small>· לפי מספר ביקורים (${totalVisits})</small></div>
       <div class="split-bar" role="img" aria-label="${esc(parts.map(([n, c]) => `${n} ${c}`).join(', '))}">
-        ${parts.map(([name, c], i) => {
+        ${parts.map(([name, c, inside], i) => {
           const share = c / totalVisits;
-          const color = name === 'אחר' && i === 5 ? '#9a9993' : SPLIT_COLORS[i];
+          const color = inside ? '#9a9993' : SPLIT_COLORS[i];
+          if (inside) name = `אחר (${restNames(inside)})`;
           const ink = (color === '#eda100' || color === '#9a9993') ? ' dark-ink' : ''; // על צהוב ואפור - טקסט כהה
           return `<span class="${ink.trim()}" style="flex:${c};background:${color}" title="${esc(name)}: ${c} ביקורים">`
             + `${share >= 0.08 ? Math.round(share * 100) + '%' : ''}</span>`;
         }).join('')}
       </div>
-      <div class="split-legend">${parts.map(([name, c], i) =>
-        `<span><i style="background:${name === 'אחר' && i === 5 ? '#9a9993' : SPLIT_COLORS[i]}"></i><b>${esc(name)}</b> ${c}</span>`).join('')}</div>
+      <div class="split-legend">${parts.map(([name, c, inside], i) => inside
+        ? `<span><i style="background:#9a9993"></i><b>אחר:</b> ${esc(restNames(inside))} · ${c}</span>`
+        : `<span><i style="background:${SPLIT_COLORS[i]}"></i><b>${esc(name)}</b> ${c}</span>`).join('')}</div>
     </div>` : '';
 
   const expRows = exps.map(x => {
