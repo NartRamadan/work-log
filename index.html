@@ -1389,6 +1389,12 @@ $('importFile').addEventListener('change', async () => {
     `הוצאות: ${add.expenses.length}`,
     `ימים עם מד אוץ: ${add.odo.length}`,
   ];
+  // פרטים לדוח מהקובץ: נכנסים רק אם עוד לא מילאת אותם בעצמך.
+  const inc = (incoming.settings && typeof incoming.settings === 'object') ? incoming.settings : {};
+  const newName = !data.settings.name && isText(inc.name) ? inc.name.trim() : '';
+  const newTo = !data.settings.recipient && isText(inc.recipient) ? inc.recipient.trim() : '';
+  if (newName) lines.push(`שם בדוח: ${newName}`);
+  if (newTo) lines.push(`לכבוד: ${newTo}`);
   if (dup) lines.push(`(${dup} כבר קיימות ולא ייובאו שוב)`);
   if (bad) lines.push(`(${bad} לא תקינות ולא ייובאו)`);
   lines.push('', 'להוסיף אותן? הנתונים הקיימים לא יימחקו.');
@@ -1400,6 +1406,8 @@ $('importFile').addEventListener('change', async () => {
     data.settings.kmRate = rate;
     $('kmRate').value = rate;
   }
+  if (newName) { data.settings.name = newName; $('rName').value = newName; }
+  if (newTo) { data.settings.recipient = newTo; $('rTo').value = newTo; }
   save();
 
   const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo].map(r => r.date).sort()[0];
