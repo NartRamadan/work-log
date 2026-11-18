@@ -673,9 +673,19 @@ $('clockBtn').addEventListener('click', () => {
   const now = new Date();
   const open = openShift();
   if (open) {
-    open.out = timeStr(now);
+    // לחיצה כפולה בטעות: אם עברה פחות מדקה מהכניסה - לשאול אם למחוק את המשמרת.
+    const [y, mo, d] = open.date.split('-').map(Number);
+    const [h, mi] = open.in.split(':').map(Number);
+    const startMs = open.ts || new Date(y, mo - 1, d, h, mi).getTime();
+    if (now - startMs < 60000 && confirm('המשמרת קצרה מדקה (כנראה לחיצה כפולה). למחוק אותה?')) {
+      data.shifts = data.shifts.filter(s => s !== open);
+    } else {
+      open.out = timeStr(now);
+      delete open.ts;
+    }
   } else {
-    data.shifts.push({ id: uid(), date: dateStr(now), in: timeStr(now), out: null });
+    // ts = הרגע המדויק של הכניסה, רק כדי לזהות משמרת קצרה מדקה. נמחק ביציאה.
+    data.shifts.push({ id: uid(), date: dateStr(now), in: timeStr(now), out: null, ts: now.getTime() });
     showMonthOf(dateStr(now));
   }
   save();
@@ -735,7 +745,8 @@ function renderShifts() {
     .sort((a, b) => (b.date + b.in).localeCompare(a.date + a.in));
 
   $('totHours').textContent = fmtDur(shifts.reduce((a, s) => a + shiftMinutes(s), 0));
-  $('totDays').textContent = new Set(shifts.map(s => s.date)).size;
+  // יום עבודה = יום עם משמרת פתוחה או משמרת של יותר מ-0 דקות.
+  $('totDays').textContent = new Set(shifts.filter(s => !s.out || shiftMinutes(s) > 0).map(s => s.date)).size;
 
   const ul = $('shiftList');
   ul.innerHTML = '';
@@ -1001,7 +1012,7 @@ function monthTotals(month) {
   const pre = prefixOf(month);
   const shifts = data.shifts.filter(s => s.date.startsWith(pre));
   const mins = shifts.reduce((a, s) => a + shiftMinutes(s), 0);
-  const days = new Set(shifts.filter(s => s.out).map(s => s.date)).size;
+  const days = new Set(shifts.filter(s => s.out && shiftMinutes(s) > 0).map(s => s.date)).size;
   const km = monthKm(pre);
   const exp = data.expenses.filter(x => x.date.startsWith(pre)).reduce((a, x) => a + x.amount, 0);
   const kmCost = data.settings.kmRate ? km * data.settings.kmRate : 0;
@@ -1344,7 +1355,7 @@ function renderReport(chartWidth) {
   const kmCost = rate ? totKm * rate : null;
   const expTotal = exps.reduce((a, x) => a + x.amount, 0);
   const grand = (kmCost || 0) + expTotal;
-  const workDays = new Set(shifts.map(s => s.date)).size;
+  const workDays = new Set(shifts.filter(s => shiftMinutes(s) > 0).map(s => s.date)).size;
 
   // שני גרפים: שעות וק"מ לפי יום, עם קו ממוצע. גרף בלי נתונים לא מוצג.
   const series = dailySeries(viewMonth);
