@@ -248,6 +248,19 @@
   .tip-row b { font-variant-numeric: tabular-nums; }
   .tip-row span { color: var(--muted); }
 
+  /* פס חלוקה: לאן נסעתי (לפי ביקורים). כל מקום בלוק משלו, האחוז כתוב בתוכו כשיש מקום */
+  .split { margin-top: 16px; }
+  .split-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .split-title small { font-weight: 400; color: var(--p-muted); }
+  .split-bar { display: flex; gap: 2px; height: 28px; }
+  .split-bar span {
+    border-radius: 4px; display: flex; align-items: center; justify-content: flex-start;
+    padding-inline-start: 6px; font-size: 12px; font-weight: 700; color: #fff; min-width: 0; white-space: nowrap;
+  }
+  .split-bar span.dark-ink { color: #0b0b0b; }
+  .split-legend { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 6px; font-size: 12px; color: var(--p-muted); }
+  .split-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline-end: 4px; vertical-align: -1px; }
+  .split-legend b { color: var(--p-text); font-weight: 600; }
   .sheet-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
   .sheet-charts.one { grid-template-columns: 1fr; }
   @media (max-width: 520px) { .sheet-charts { grid-template-columns: 1fr; } }
@@ -319,6 +332,11 @@
   .sheet.compact .sheet-charts { grid-template-columns: 1fr 1fr; margin-top: 8px; gap: 14px; }
   .sheet.compact .sheet-charts.one { grid-template-columns: 1fr; }
   .sheet.compact .sign { margin-top: 26px; }
+  .sheet.compact .split { margin-top: 10px; }
+  .sheet.compact .split-title { font-size: 12px; margin-bottom: 4px; }
+  .sheet.compact .split-bar { height: 22px; }
+  .sheet.compact .split-bar span { font-size: 10.5px; }
+  .sheet.compact .split-legend { font-size: 10.5px; margin-top: 4px; }
 
   /* ---- הדפסה: רק דף הדוח, בלי כפתורים ותפריטים ---- */
   @page { size: A4; margin: 14mm; }
@@ -1346,6 +1364,31 @@ function renderReport(chartWidth) {
         width: cw, n: series.n, panelH: 62, ink: PAPER_INK, label: p.title, panels: [p] })}</div>`).join('')}</div>`
     : '';
 
+  // פס חלוקה "לאן נסעתי": כל הגעה למקום שאינו הבית = ביקור אחד.
+  // 5 המקומות המובילים מקבלים צבע; אם יש יותר - השאר מתאחדים ל"אחר" (אפור).
+  const SPLIT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4']; // נבדקו לעיוורי צבעים
+  const visits = {};
+  data.trips.filter(t => t.date.startsWith(pre) && t.to !== HOME)
+    .forEach(t => { visits[t.to] = (visits[t.to] || 0) + 1; });
+  let parts = Object.entries(visits).sort((a, b) => b[1] - a[1]);
+  const totalVisits = parts.reduce((a, p) => a + p[1], 0);
+  if (parts.length > 6) parts = [...parts.slice(0, 5), ['אחר', parts.slice(5).reduce((a, p) => a + p[1], 0)]];
+  const splitHtml = totalVisits ? `
+    <div class="split">
+      <div class="split-title">לאן נסעתי החודש <small>· לפי מספר ביקורים (${totalVisits})</small></div>
+      <div class="split-bar" role="img" aria-label="${esc(parts.map(([n, c]) => `${n} ${c}`).join(', '))}">
+        ${parts.map(([name, c], i) => {
+          const share = c / totalVisits;
+          const color = name === 'אחר' && i === 5 ? '#9a9993' : SPLIT_COLORS[i];
+          const ink = (color === '#eda100' || color === '#9a9993') ? ' dark-ink' : ''; // על צהוב ואפור - טקסט כהה
+          return `<span class="${ink.trim()}" style="flex:${c};background:${color}" title="${esc(name)}: ${c} ביקורים">`
+            + `${share >= 0.08 ? Math.round(share * 100) + '%' : ''}</span>`;
+        }).join('')}
+      </div>
+      <div class="split-legend">${parts.map(([name, c], i) =>
+        `<span><i style="background:${name === 'אחר' && i === 5 ? '#9a9993' : SPLIT_COLORS[i]}"></i><b>${esc(name)}</b> ${c}</span>`).join('')}</div>
+    </div>` : '';
+
   const expRows = exps.map(x => {
     const [, m, d] = x.date.split('-').map(Number);
     return `<tr><td class="t">${d}/${m}</td><td>${esc(x.desc)}</td><td class="n">${money.format(x.amount)}</td></tr>`;
@@ -1368,6 +1411,7 @@ function renderReport(chartWidth) {
       <div class="sum total"><b>${money.format(grand)}</b><span>סה״כ להחזר</span></div>
     </div>
 
+    ${splitHtml}
     ${chartsHtml}
 
     <h4>ימי עבודה ונסיעות</h4>
