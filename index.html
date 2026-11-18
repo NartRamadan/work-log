@@ -1,0 +1,1430 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>יומן עבודה</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --card: #ffffff;
+    --text: #1c1f24;
+    --muted: #6b7280;
+    --line: #e2e5e9;
+    --accent: #0f766e;
+    --accent-ink: #ffffff;
+    --accent-soft: #e6f4f2;
+    --danger: #b42318;
+    --danger-ink: #ffffff;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101316;
+      --card: #191e24;
+      --text: #e8eaed;
+      --muted: #9aa3ad;
+      --line: #2a3139;
+      --accent: #2dd4bf;
+      --accent-ink: #062320;
+      --accent-soft: #15302d;
+      --danger: #f97066;
+      --danger-ink: #2a0905;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  button, input { font: inherit; color: inherit; }
+
+  /* ---- כותרת ולשוניות ---- */
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 16px 0;
+  }
+  header h1 { max-width: 640px; margin: 0 auto 10px; font-size: 20px; }
+  .tabs { display: flex; gap: 4px; max-width: 640px; margin: 0 auto; }
+  .tab {
+    flex: 1; border: 0; background: none; padding: 10px 4px;
+    border-bottom: 3px solid transparent; color: var(--muted);
+    cursor: pointer; font-weight: 600;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 17px; margin: 0; }
+  .card > h2 { margin-bottom: 4px; }
+
+  /* ---- בחירת חודש (משותף לכל הלשוניות) ---- */
+  .month-bar { padding: 10px 12px; }
+  .month-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .icon-btn {
+    border: 1px solid var(--line); background: var(--bg);
+    width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+  }
+
+  /* ---- כרטיס מצב ---- */
+  .status { text-align: center; }
+  .status-label { color: var(--muted); font-weight: 600; }
+  .status-time {
+    font-size: 52px; font-weight: 700; line-height: 1.1;
+    font-variant-numeric: tabular-nums; margin: 6px 0 2px;
+    direction: ltr;
+  }
+  .status-sub { color: var(--muted); min-height: 1.5em; margin-bottom: 14px; }
+  .status.on .status-label { color: var(--accent); }
+  .big-btn {
+    width: 100%; border: 0; border-radius: 12px;
+    padding: 18px; font-size: 22px; font-weight: 700;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .big-btn.out { background: var(--danger); color: var(--danger-ink); }
+  .big-btn:active { transform: scale(0.98); }
+
+  /* ---- טפסים ---- */
+  details summary { cursor: pointer; font-weight: 600; }
+  .form-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-grid .end { align-self: end; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+  input[type=date], input[type=time], input[type=text], input[type=number] {
+    width: 100%; padding: 10px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--bg);
+  }
+  .btn {
+    border: 0; border-radius: 10px; padding: 12px 16px;
+    background: var(--accent); color: var(--accent-ink);
+    font-weight: 700; cursor: pointer; width: 100%;
+  }
+  .btn.secondary { background: var(--accent-soft); color: var(--accent); }
+  .msg { font-size: 14px; min-height: 1.4em; margin-top: 6px; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--accent); }
+  .hint { font-size: 13px; color: var(--accent); min-height: 1.2em; margin-top: 2px; }
+  .hint.err { color: var(--danger); }
+  .leg.odo .route { color: var(--muted); font-size: 13px; }
+
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .note { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+
+  .rate-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .rate-row input { width: 120px; }
+  .rate-row span { color: var(--muted); }
+
+  /* ---- סיכומים ורשימות ---- */
+  .totals {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0;
+  }
+  .total-box { background: var(--accent-soft); border-radius: 10px; padding: 10px; text-align: center; }
+  .total-box b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .total-box span { font-size: 13px; color: var(--muted); }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list > li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-top: 1px solid var(--line);
+  }
+  .li-main { flex: 1; min-width: 0; }
+  .li-main small { color: var(--muted); display: block; font-size: 13px; }
+  .li-num { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .del {
+    border: 0; background: none; color: var(--muted); flex: none;
+    font-size: 18px; width: 36px; height: 36px; cursor: pointer; border-radius: 8px;
+  }
+  .del:hover { color: var(--danger); background: var(--bg); }
+  .empty { color: var(--muted); justify-content: center; }
+  .soon { color: var(--muted); text-align: center; padding: 32px 0; }
+
+  /* יום נסיעות: כותרת יום + קטעים */
+  ul.list > li.day { display: block; }
+  .day-head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 4px; }
+  .day-head small { color: var(--muted); font-weight: 400; }
+  .leg { display: flex; align-items: center; gap: 8px; padding-inline-start: 10px; }
+  .leg .route { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .leg .km { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+
+  /* ---- צבעי גרפים (נבדקו: מתאימים גם לעיוורי צבעים, בהיר וכהה) ---- */
+  :root {
+    --c-hours: #2a78d6;  /* שעות = כחול */
+    --c-km: #eb6834;     /* ק"מ = כתום */
+    --grid: #e1e0d9; --axis: #c3c2b7; --ink-muted: #898781;
+    --cell-empty: #f0efec;
+    /* לוח החודש: 5 דרגות, מבהיר (מעט שעות) לכהה (הרבה) + צבע טקסט שקריא על כל דרגה */
+    --h1: #86b6ef; --h2: #5598e7; --h3: #2a78d6; --h4: #1c5cab; --h5: #0d366b;
+    --hi1: #0b0b0b; --hi2: #0b0b0b; --hi3: #ffffff; --hi4: #ffffff; --hi5: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --c-hours: #3987e5; --c-km: #d95926;
+      --grid: #2c2c2a; --axis: #383835; --ink-muted: #898781;
+      --cell-empty: #222830;
+      --h1: #184f95; --h2: #256abf; --h3: #3987e5; --h4: #6da7ec; --h5: #9ec5f4;
+      --hi1: #ffffff; --hi2: #ffffff; --hi3: #0b0b0b; --hi4: #0b0b0b; --hi5: #0b0b0b;
+    }
+  }
+
+  /* ---- סיכום: מספרים גדולים ---- */
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 12px 14px;
+  }
+  .kpi-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .kpi-label i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .kpi-value { font-size: 28px; font-weight: 700; line-height: 1.2; margin-top: 4px; white-space: nowrap; }
+  .kpi-sub { font-size: 12px; color: var(--muted); }
+  .kpi-delta { font-size: 12px; color: var(--text); margin-top: 4px; }
+  @media (max-width: 520px) {
+    .kpis { grid-template-columns: 1fr 1fr; }
+    .kpis .kpi:last-child { grid-column: 1 / -1; }
+  }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+
+  /* ---- לוח החודש ---- */
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 12px; }
+  .cal-h { text-align: center; font-size: 12px; color: var(--muted); }
+  .cal-cell {
+    aspect-ratio: 1 / 1; border: 0; border-radius: 8px; padding: 0;
+    background: var(--cell-empty); color: var(--text);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-variant-numeric: tabular-nums; cursor: pointer;
+    transition: transform .12s;
+  }
+  .cal-cell .d { font-size: 13px; font-weight: 600; line-height: 1.15; }
+  .cal-cell .v { font-size: 10.5px; line-height: 1.15; }
+  .cal-cell:hover, .cal-cell:focus-visible { transform: scale(1.08); outline: none; }
+  .cal-cell.today { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--text); }
+  .b1 { background: var(--h1); color: var(--hi1); }
+  .b2 { background: var(--h2); color: var(--hi2); }
+  .b3 { background: var(--h3); color: var(--hi3); }
+  .b4 { background: var(--h4); color: var(--hi4); }
+  .b5 { background: var(--h5); color: var(--hi5); }
+  .cal-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .cal-legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+
+  /* ---- גרפי עמודות + טבלה ---- */
+  .chart { margin-top: 10px; }
+  .chart .hit { cursor: pointer; }
+  .empty-chart { color: var(--muted); text-align: center; padding: 24px 0; margin: 0; }
+  .tbl-toggle { margin-top: 10px; }
+  .tbl-toggle summary { font-size: 14px; color: var(--muted); }
+  .data-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .data-table th, .data-table td { padding: 5px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+  .data-table th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .data-table .n { text-align: left; }
+
+  /* ---- חלונית מידע שצצה במעבר עכבר / נגיעה ---- */
+  #tip {
+    position: fixed; z-index: 20; pointer-events: none;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.15);
+    padding: 8px 10px; font-size: 13px; min-width: 120px;
+  }
+  #tip[hidden] { display: none; }
+  .tip-title { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .tip-row { display: flex; align-items: center; gap: 6px; }
+  .tip-row i { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+  .tip-row b { font-variant-numeric: tabular-nums; }
+  .tip-row span { color: var(--muted); }
+
+  .sheet-chart { margin-top: 18px; }
+
+  /* ---- דף הדוח: תמיד נראה כמו נייר לבן, גם במצב כהה ---- */
+  .sheet {
+    --p-text: #14171a; --p-muted: #5b636b; --p-line: #d5d9de;
+    --p-soft: #eef6f5; --p-accent: #0f766e;
+    background: #fff; color: var(--p-text);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px; font-size: 14px;
+  }
+  .sheet h3 { font-size: 22px; margin: 0; }
+  .sheet .meta { color: var(--p-muted); display: flex; flex-wrap: wrap; gap: 2px 18px; margin: 6px 0 18px; }
+  .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sum { border: 1px solid var(--p-line); border-radius: 8px; padding: 8px 6px; text-align: center; }
+  .sum b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+  .sum span { font-size: 12px; color: var(--p-muted); }
+  .sum.total { background: var(--p-soft); border-color: var(--p-accent); }
+  .sum.total b { color: var(--p-accent); }
+  .sheet h4 {
+    font-size: 15px; margin: 22px 0 6px; padding-bottom: 4px;
+    border-bottom: 2px solid var(--p-accent);
+  }
+  .tbl-wrap { overflow-x: auto; }
+  .sheet table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .sheet th, .sheet td {
+    padding: 5px 6px; border-bottom: 1px solid var(--p-line);
+    text-align: right; vertical-align: top;
+  }
+  .sheet th { font-size: 12px; color: var(--p-muted); font-weight: 600; }
+  .sheet .n { text-align: left; white-space: nowrap; }
+  .sheet .t { white-space: nowrap; }
+  .sheet .route { color: var(--p-muted); font-size: 12px; }
+  .sheet tfoot td { font-weight: 700; border-top: 2px solid var(--p-text); border-bottom: 0; }
+  .sheet .calc { color: var(--p-muted); font-size: 13px; margin-top: 6px; }
+  .sheet .none { color: var(--p-muted); text-align: center; padding: 10px; }
+  .sheet tr { break-inside: avoid; }
+  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 48px; break-inside: avoid; }
+  .sign div { border-top: 1px solid var(--p-text); padding-top: 4px; font-size: 12px; color: var(--p-muted); }
+  @media (max-width: 480px) {
+    .sheet { padding: 14px; font-size: 13px; }
+    .sum-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ---- הדפסה: רק דף הדוח, בלי כפתורים ותפריטים ---- */
+  @page { size: A4; margin: 14mm; }
+  @media print {
+    header, .month-bar, #dataCard, .no-print, #tip,
+    .panel:not(#panel-report) { display: none !important; }
+    #panel-report { display: block !important; }
+    body { background: #fff; }
+    main { max-width: none; padding: 0; }
+    .sheet { border: 0; border-radius: 0; padding: 0; }
+    .tbl-wrap { overflow: visible; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>יומן עבודה</h1>
+  <nav class="tabs">
+    <button class="tab active" data-tab="hours">שעות</button>
+    <button class="tab" data-tab="travel">נסיעות</button>
+    <button class="tab" data-tab="summary">סיכום</button>
+    <button class="tab" data-tab="report">דוח</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ===== בחירת חודש: משותף לכל הלשוניות ===== -->
+  <div class="card month-bar">
+    <div class="month-nav">
+      <button class="icon-btn" id="prevMonth" aria-label="חודש קודם">▶</button>
+      <h2 id="monthTitle"></h2>
+      <button class="icon-btn" id="nextMonth" aria-label="חודש הבא">◀</button>
+    </div>
+  </div>
+
+  <!-- ===== לשונית שעות ===== -->
+  <section class="panel active" id="panel-hours">
+
+    <div class="card status" id="statusCard">
+      <div class="status-label" id="statusLabel">היום</div>
+      <div class="status-time" id="statusTime">0:00</div>
+      <div class="status-sub" id="statusSub"></div>
+      <button class="big-btn" id="clockBtn">כניסה</button>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>שכחת ללחוץ? הזנה ידנית</summary>
+        <form id="manualForm" class="form-grid">
+          <div class="full">
+            <label for="mDate">תאריך</label>
+            <input type="date" id="mDate" required>
+          </div>
+          <div>
+            <label for="mIn">כניסה</label>
+            <input type="time" id="mIn" required>
+          </div>
+          <div>
+            <label for="mOut">יציאה</label>
+            <input type="time" id="mOut" required>
+          </div>
+          <div class="full">
+            <button class="btn" type="submit">שמור</button>
+            <div class="msg" id="mMsg"></div>
+          </div>
+        </form>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>משמרות</h2>
+      <div class="totals">
+        <div class="total-box"><b id="totHours">0:00</b><span>שעות בחודש</span></div>
+        <div class="total-box"><b id="totDays">0</b><span>ימי עבודה</span></div>
+      </div>
+      <ul class="list" id="shiftList"></ul>
+    </div>
+  </section>
+
+  <!-- ===== לשונית נסיעות והוצאות ===== -->
+  <section class="panel" id="panel-travel">
+
+    <div class="card">
+      <h2>תעריף לק״מ</h2>
+      <div class="rate-row">
+        <input type="number" id="kmRate" min="0" step="0.01" inputmode="decimal" placeholder="לדוגמה 1.50">
+        <span>₪ לכל ק״מ</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>יום נסיעה</h2>
+      <form id="tripForm" class="form-grid" autocomplete="off">
+        <div class="full">
+          <label for="tDate">תאריך</label>
+          <input type="date" id="tDate" required>
+        </div>
+        <div>
+          <label for="oStart">מד אוץ בבוקר</label>
+          <input type="number" id="oStart" min="0" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label for="oEnd">מד אוץ בערב</label>
+          <input type="number" id="oEnd" min="0" step="1" inputmode="numeric">
+        </div>
+        <div class="full hint" id="oHint"></div>
+        <div class="full"><h2>קטע: לאן נסעת</h2></div>
+        <div>
+          <label for="tFrom">מאיפה</label>
+          <input type="text" id="tFrom" list="places" required>
+        </div>
+        <div>
+          <label for="tTo">לאן</label>
+          <input type="text" id="tTo" list="places" required>
+        </div>
+        <div>
+          <label for="tKm">ק״מ (לא חובה)</label>
+          <input type="number" id="tKm" min="0" step="0.1" inputmode="decimal">
+        </div>
+        <div class="end">
+          <button class="btn secondary" type="button" id="homeBtn">חזרה הביתה</button>
+        </div>
+        <div class="full hint" id="kmHint"></div>
+        <div class="full">
+          <button class="btn" type="submit">שמור קטע</button>
+          <div class="msg" id="tMsg"></div>
+        </div>
+      </form>
+      <datalist id="places"></datalist>
+    </div>
+
+    <div class="card">
+      <h2>יומן נסיעות</h2>
+      <div class="totals">
+        <div class="total-box"><b id="totKm">0</b><span>ק״מ בחודש</span></div>
+        <div class="total-box"><b id="totKmCost">—</b><span id="totKmCostLabel">הזן תעריף למעלה</span></div>
+      </div>
+      <ul class="list" id="tripList"></ul>
+    </div>
+
+    <div class="card">
+      <h2>הוצאה</h2>
+      <form id="expForm" class="form-grid" autocomplete="off">
+        <div>
+          <label for="eDate">תאריך</label>
+          <input type="date" id="eDate" required>
+        </div>
+        <div>
+          <label for="eAmount">סכום (₪)</label>
+          <input type="number" id="eAmount" min="0" step="0.01" inputmode="decimal" required>
+        </div>
+        <div class="full">
+          <label for="eDesc">תיאור</label>
+          <input type="text" id="eDesc" placeholder="לדוגמה: כרסום 6 מ״מ, חניה" required>
+        </div>
+        <div class="full">
+          <button class="btn" type="submit">שמור הוצאה</button>
+          <div class="msg" id="eMsg"></div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>הוצאות</h2>
+      <div class="totals">
+        <div class="total-box"><b id="totExp">₪0</b><span>סך הוצאות</span></div>
+        <div class="total-box"><b id="cntExp">0</b><span>פריטים</span></div>
+      </div>
+      <ul class="list" id="expList"></ul>
+    </div>
+  </section>
+
+  <!-- ===== לשונית סיכום (גרפים) ===== -->
+  <section class="panel" id="panel-summary">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card">
+      <h2>לוח החודש</h2>
+      <p class="sub">כל יום צבוע לפי שעות העבודה. נגיעה ביום מראה פרטים.</p>
+      <div class="cal" id="cal"></div>
+      <div class="cal-legend">
+        <span><i style="background:var(--cell-empty)"></i>לא עבדת</span>
+        <span><i class="b1"></i>עד 4</span>
+        <span><i class="b2"></i><bdi dir="ltr">4–6</bdi></span>
+        <span><i class="b3"></i><bdi dir="ltr">6–8</bdi></span>
+        <span><i class="b4"></i><bdi dir="ltr">8–10</bdi></span>
+        <span><i class="b5"></i><bdi dir="ltr">10+</bdi>&nbsp;שעות</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>שעות וק״מ לפי יום</h2>
+      <p class="sub">נגיעה או מעבר עכבר על יום מראה את המספרים שלו.</p>
+      <div class="chart" id="dayCharts"></div>
+      <details class="tbl-toggle">
+        <summary>הצג כטבלה</summary>
+        <div id="dayTable"></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== לשונית דוח ===== -->
+  <section class="panel" id="panel-report">
+    <div class="card no-print">
+      <h2>פרטים לדוח</h2>
+      <div class="form-grid">
+        <div>
+          <label for="rName">שם</label>
+          <input type="text" id="rName" placeholder="השם שלך">
+        </div>
+        <div>
+          <label for="rTo">לכבוד</label>
+          <input type="text" id="rTo" placeholder="שם המנהל / העסק">
+        </div>
+        <div class="full">
+          <button class="btn" type="button" id="printBtn">הדפסה / שמירה כ-PDF</button>
+          <p class="note">בחלון ההדפסה אפשר לבחור "שמירה כ-PDF" במקום מדפסת.</p>
+        </div>
+      </div>
+    </div>
+    <article class="sheet" id="sheet"></article>
+  </section>
+
+  <!-- ===== גיבוי ונתונים: משותף לכל הלשוניות ===== -->
+  <div class="card" id="dataCard">
+    <details>
+      <summary>גיבוי ונתונים</summary>
+      <p class="note">הנתונים נשמרים רק בדפדפן הזה. כדאי לשמור גיבוי לקובץ מדי פעם.
+        ייבוא מוסיף רשומות חדשות ולא מוחק את מה שכבר יש.</p>
+      <div class="btn-row">
+        <button class="btn secondary" type="button" id="exportBtn">ייצוא לקובץ</button>
+        <button class="btn secondary" type="button" id="importBtn">ייבוא מקובץ</button>
+      </div>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <div class="msg" id="dMsg"></div>
+    </details>
+  </div>
+</main>
+
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+/* ===================== נתונים ===================== */
+// כל הנתונים נשמרים בדפדפן (localStorage) תחת מפתח אחד.
+const KEY = 'worklog-v1';
+const HOME = 'בית';
+
+function emptyData() {
+  return { shifts: [], trips: [], expenses: [], odo: [], settings: { kmRate: null } };
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if (d) return Object.assign(emptyData(), d);
+  } catch (e) { /* אין גישה לאחסון, או נתונים פגומים */ }
+  return emptyData();
+}
+let data = load();
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch (e) {
+    alert('השמירה נכשלה. ייתכן שהדפדפן חוסם אחסון (למשל במצב גלישה פרטית).');
+  }
+}
+
+/* ===================== עזרים ===================== */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const timeStr = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const fmtDur = m => `${Math.floor(m / 60)}:${pad(m % 60)}`;
+// טווח שעות בתוך טקסט עברי: מסמנים "משמאל לימין" כדי שהדפדפן לא יהפוך את הסדר (17:12–17:11).
+const timeRange = (a, b) => `⁦${a}–${b}⁩`;
+const fmtKm = n => n.toLocaleString('he-IL', { maximumFractionDigits: 1 });
+const money = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' });
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+// מונע מטקסט שהקלדת (שם מקום, תיאור) להישבר או להפוך לקוד בדף.
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function prettyDate(ds) {
+  const [y, m, d] = ds.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return { day: `${d}/${m}`, weekday: dt.toLocaleDateString('he-IL', { weekday: 'long' }) };
+}
+function setMsg(el, kind, text) { el.className = 'msg ' + kind; el.textContent = text; }
+function delButton(label, onYes) {
+  const b = document.createElement('button');
+  b.className = 'del'; b.setAttribute('aria-label', 'מחק'); b.textContent = '✕';
+  b.addEventListener('click', () => { if (confirm(label)) onYes(); });
+  return b;
+}
+
+/* ===================== חודש מוצג (משותף) ===================== */
+let viewMonth = (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); })();
+const monthPrefix = () => `${viewMonth.getFullYear()}-${pad(viewMonth.getMonth() + 1)}`;
+function showMonthOf(ds) { const [y, m] = ds.split('-').map(Number); viewMonth = new Date(y, m - 1, 1); }
+
+$('prevMonth').addEventListener('click', () => {
+  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1); render();
+});
+$('nextMonth').addEventListener('click', () => {
+  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1); render();
+});
+
+/* ===================== לשוניות ===================== */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.panel').forEach(p =>
+      p.classList.toggle('active', p.id === 'panel-' + btn.dataset.tab));
+    // גרפים צריכים לדעת את הרוחב האמיתי, ורק לשונית גלויה יודעת אותו.
+    if (btn.dataset.tab === 'summary') renderSummary();
+    if (btn.dataset.tab === 'report') renderReport();
+  });
+});
+
+/* ===================== שעות: כניסה / יציאה ===================== */
+// משמרת שעוברת חצות: אם היציאה מוקדמת מהכניסה, מניחים שזה ביום הבא.
+function shiftMinutes(s) {
+  if (!s.out) return 0;
+  let m = toMin(s.out) - toMin(s.in);
+  if (m < 0) m += 24 * 60;
+  return m;
+}
+function openShift() { return data.shifts.find(s => !s.out); }
+
+$('clockBtn').addEventListener('click', () => {
+  const now = new Date();
+  const open = openShift();
+  if (open) {
+    open.out = timeStr(now);
+  } else {
+    data.shifts.push({ id: uid(), date: dateStr(now), in: timeStr(now), out: null });
+    showMonthOf(dateStr(now));
+  }
+  save();
+  render();
+});
+
+function renderStatus() {
+  const card = $('statusCard'), btn = $('clockBtn');
+  const open = openShift();
+  if (open) {
+    const [y, mo, d] = open.date.split('-').map(Number);
+    const [h, mi] = open.in.split(':').map(Number);
+    const start = new Date(y, mo - 1, d, h, mi);
+    const elapsed = Math.max(0, Math.floor((Date.now() - start) / 60000));
+    card.classList.add('on');
+    $('statusLabel').textContent = 'במשמרת';
+    $('statusTime').textContent = fmtDur(elapsed);
+    $('statusSub').textContent = `נכנסת ב-${open.in}`;
+    btn.textContent = 'יציאה';
+    btn.classList.add('out');
+  } else {
+    const today = dateStr(new Date());
+    const mins = data.shifts.filter(s => s.date === today).reduce((a, s) => a + shiftMinutes(s), 0);
+    card.classList.remove('on');
+    $('statusLabel').textContent = 'היום';
+    $('statusTime').textContent = fmtDur(mins);
+    $('statusSub').textContent = mins ? 'שעות שנרשמו היום' : 'עוד לא נרשמו שעות היום';
+    btn.textContent = 'כניסה';
+    btn.classList.remove('out');
+  }
+}
+
+/* ===================== שעות: הזנה ידנית ===================== */
+$('mDate').value = dateStr(new Date());
+
+$('manualForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const msg = $('mMsg');
+  const date = $('mDate').value, tIn = $('mIn').value, tOut = $('mOut').value;
+  if (!date || !tIn || !tOut) return setMsg(msg, 'err', 'צריך למלא את כל השדות.');
+  if (tIn === tOut) return setMsg(msg, 'err', 'שעת כניסה ויציאה זהות.');
+
+  data.shifts.push({ id: uid(), date, in: tIn, out: tOut });
+  save();
+  showMonthOf(date);
+  render();
+
+  const dur = fmtDur(shiftMinutes({ in: tIn, out: tOut }));
+  setMsg(msg, 'ok', `נשמר: ${timeRange(tIn, tOut)} (${dur} שעות)` + (toMin(tOut) < toMin(tIn) ? ', כולל מעבר חצות' : ''));
+  $('mIn').value = '';
+  $('mOut').value = '';
+});
+
+function renderShifts() {
+  const shifts = data.shifts
+    .filter(s => s.date.startsWith(monthPrefix()))
+    .sort((a, b) => (b.date + b.in).localeCompare(a.date + a.in));
+
+  $('totHours').textContent = fmtDur(shifts.reduce((a, s) => a + shiftMinutes(s), 0));
+  $('totDays').textContent = new Set(shifts.map(s => s.date)).size;
+
+  const ul = $('shiftList');
+  ul.innerHTML = '';
+  if (!shifts.length) { ul.innerHTML = '<li class="empty">אין משמרות בחודש הזה.</li>'; return; }
+  for (const s of shifts) {
+    const p = prettyDate(s.date);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="li-main">${p.day} <small>${p.weekday} · ${s.out ? timeRange(s.in, s.out) : s.in + '–עכשיו'}</small></div>
+      <div class="li-num">${s.out ? fmtDur(shiftMinutes(s)) : '…'}</div>`;
+    li.appendChild(delButton(`למחוק את המשמרת של ${p.day} (${s.in}–${s.out || 'פתוחה'})?`, () => {
+      data.shifts = data.shifts.filter(x => x.id !== s.id); save(); render();
+    }));
+    ul.appendChild(li);
+  }
+}
+
+/* ===================== תעריף ===================== */
+$('kmRate').value = data.settings.kmRate ?? '';
+$('kmRate').addEventListener('change', () => {
+  const v = parseFloat($('kmRate').value);
+  data.settings.kmRate = v > 0 ? v : null;
+  save();
+  renderTrips();
+});
+
+/* ===================== נסיעות ===================== */
+const tDate = $('tDate'), tFrom = $('tFrom'), tTo = $('tTo'), tKm = $('tKm');
+tDate.value = dateStr(new Date());
+
+/* ---- מד אוץ ---- */
+const oStart = $('oStart'), oEnd = $('oEnd');
+const odoOf = date => data.odo.find(o => o.date === date);
+const odoFull = o => o && o.start != null && o.end != null;
+const legsKm = date => data.trips.filter(t => t.date === date).reduce((a, t) => a + (t.km || 0), 0);
+// ק"מ של יום: לפי מד האוץ אם יש בוקר וגם ערב. אחרת: סכום הק"מ של הקטעים.
+function dayKm(date) { const o = odoOf(date); return odoFull(o) ? o.end - o.start : legsKm(date); }
+// כל התאריכים בחודש שיש בהם נסיעות או מד אוץ.
+const kmDates = pre => [...new Set([...data.trips, ...data.odo].filter(r => r.date.startsWith(pre)).map(r => r.date))];
+const monthKm = pre => kmDates(pre).reduce((a, d) => a + dayKm(d), 0);
+// טווח בסדר משמאל לימין, כדי שלא יתהפך בתוך עברית (כמו בשעות).
+const odoText = o => `מד אוץ ${timeRange(o.start != null ? fmtKm(o.start) : '?', o.end != null ? fmtKm(o.end) : '?')}`;
+
+function showOdoHint() {
+  const o = odoOf(tDate.value), h = $('oHint');
+  h.className = 'full hint';
+  h.textContent = odoFull(o) ? `היום: ${fmtKm(o.end - o.start)} ק״מ לפי מד האוץ` : '';
+}
+// ממלא את שדות מד האוץ לפי התאריך שנבחר. רמז בבוקר: הקריאה של הערב הקודם.
+function fillOdo() {
+  const o = odoOf(tDate.value);
+  oStart.value = o && o.start != null ? o.start : '';
+  oEnd.value = o && o.end != null ? o.end : '';
+  const prev = data.odo.filter(x => x.date < tDate.value && x.end != null)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  oStart.placeholder = prev ? `בערב הקודם: ${prev.end}` : '';
+  showOdoHint();
+}
+// נשמר לבד ברגע שמשנים מספר.
+function saveOdo() {
+  const h = $('oHint');
+  const s = oStart.value === '' ? null : Number(oStart.value);
+  const e = oEnd.value === '' ? null : Number(oEnd.value);
+  const bad = msg => { h.className = 'full hint err'; h.textContent = msg; };
+  if ((s != null && s < 0) || (e != null && e < 0)) return bad('מד אוץ לא יכול להיות שלילי.');
+  if (s != null && e != null && e <= s) return bad('מד האוץ בערב צריך להיות גדול מהבוקר. לא נשמר.');
+  if (s != null && e != null && e - s > 2000) return bad('יותר מ-2,000 ק״מ ביום? כנראה טעות הקלדה. לא נשמר.');
+
+  let o = odoOf(tDate.value);
+  if (s == null && e == null) {
+    if (o) data.odo = data.odo.filter(x => x !== o);
+  } else {
+    if (!o) { o = { id: uid(), date: tDate.value }; data.odo.push(o); }
+    o.start = s;
+    o.end = e;
+  }
+  save();
+  showMonthOf(tDate.value);
+  render();
+  showOdoHint();
+}
+oStart.addEventListener('change', saveOdo);
+oEnd.addEventListener('change', saveOdo);
+
+// הקטעים של יום מסוים, לפי סדר ההזנה.
+function legsOf(date) { return data.trips.filter(t => t.date === date).sort((a, b) => a.t - b.t); }
+
+// "מאיפה": בקטע הראשון של היום = בית. אחר כך = לאן שהגעת בקטע הקודם.
+function fillFrom() {
+  const legs = legsOf(tDate.value);
+  tFrom.value = legs.length ? legs[legs.length - 1].to : HOME;
+}
+
+// מחפש מסלול שכבר נסעת (באותו כיוון, ואם אין אז בכיוון ההפוך) ומחזיר את הק"מ.
+function findRouteKm(from, to) {
+  from = from.trim(); to = to.trim();
+  if (!from || !to) return null;
+  for (let i = data.trips.length - 1; i >= 0; i--) {
+    const t = data.trips[i];
+    if (t.km && t.from === from && t.to === to) return { km: t.km, reverse: false };
+  }
+  for (let i = data.trips.length - 1; i >= 0; i--) {
+    const t = data.trips[i];
+    if (t.km && t.from === to && t.to === from) return { km: t.km, reverse: true };
+  }
+  return null;
+}
+
+// ממלא ק"מ לבד, רק אם השדה ריק או שמילאנו אותו לבד קודם (לא דורס מה שהקלדת).
+function autoKm() {
+  if (tKm.value && tKm.dataset.auto !== '1') return;
+  const r = findRouteKm(tFrom.value, tTo.value);
+  if (r) {
+    tKm.value = r.km;
+    tKm.dataset.auto = '1';
+    $('kmHint').textContent = r.reverse
+      ? `מולא לפי המסלול ההפוך (${r.km} ק״מ). אפשר לשנות.`
+      : `מולא לפי נסיעה קודמת (${r.km} ק״מ). אפשר לשנות.`;
+  } else if (tKm.dataset.auto === '1') {
+    tKm.value = '';
+    tKm.dataset.auto = '';
+    $('kmHint').textContent = '';
+  }
+}
+tFrom.addEventListener('input', autoKm);
+tTo.addEventListener('input', autoKm);
+tKm.addEventListener('input', () => { tKm.dataset.auto = ''; $('kmHint').textContent = ''; });
+tDate.addEventListener('change', () => { fillFrom(); fillOdo(); autoKm(); });
+
+$('homeBtn').addEventListener('click', () => {
+  tTo.value = HOME;
+  autoKm();
+  tKm.focus();
+});
+
+$('tripForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const msg = $('tMsg');
+  const date = tDate.value, from = tFrom.value.trim(), to = tTo.value.trim();
+  const km = tKm.value.trim() === '' ? null : parseFloat(tKm.value);
+  if (!date || !from || !to) return setMsg(msg, 'err', 'צריך למלא תאריך, מאיפה ולאן.');
+  if (from === to) return setMsg(msg, 'err', '"מאיפה" ו"לאן" זהים.');
+  if (km !== null && !(km > 0)) return setMsg(msg, 'err', 'ק״מ צריך להיות מספר גדול מ-0, או להשאיר ריק.');
+
+  data.trips.push({ id: uid(), date, from, to, km, t: Date.now() });
+  save();
+  showMonthOf(date);
+  render();
+
+  setMsg(msg, 'ok', `נשמר: ${from} ← ${to}` + (km ? `, ${fmtKm(km)} ק״מ` : ''));
+  tTo.value = '';
+  tKm.value = '';
+  tKm.dataset.auto = '';
+  $('kmHint').textContent = '';
+  fillFrom();
+});
+
+// רשימת מקומות להשלמה אוטומטית, מכל הנסיעות שהזנת.
+function renderPlaces() {
+  const set = new Set([HOME]);
+  data.trips.forEach(t => { set.add(t.from); set.add(t.to); });
+  $('places').innerHTML = [...set].map(p => `<option value="${esc(p)}">`).join('');
+}
+
+function renderTrips() {
+  const dates = kmDates(monthPrefix()).sort().reverse();
+  const totalKm = monthKm(monthPrefix());
+  const rate = data.settings.kmRate;
+  $('totKm').textContent = fmtKm(totalKm);
+  $('totKmCost').textContent = rate ? money.format(totalKm * rate) : '—';
+  $('totKmCostLabel').textContent = rate ? `לפי ${money.format(rate)} לק״מ` : 'הזן תעריף למעלה';
+
+  const ul = $('tripList');
+  ul.innerHTML = '';
+  if (!dates.length) { ul.innerHTML = '<li class="empty">אין נסיעות בחודש הזה.</li>'; return; }
+
+  for (const date of dates) {
+    const legs = legsOf(date);
+    const p = prettyDate(date);
+    const o = odoOf(date);
+    const li = document.createElement('li');
+    li.className = 'day';
+    li.innerHTML = `<div class="day-head"><span>${p.day} <small>${p.weekday}</small></span>
+      <span>${fmtKm(dayKm(date))} ק״מ ${odoFull(o) ? '<small>(מד אוץ)</small>' : ''}</span></div>`;
+    if (o) {
+      const row = document.createElement('div');
+      row.className = 'leg odo';
+      row.innerHTML = `<span class="route">${odoText(o)}${odoFull(o) ? '' : ' · חסרה קריאה'}</span>`;
+      li.appendChild(row);
+    }
+    for (const t of legs) {
+      const row = document.createElement('div');
+      row.className = 'leg';
+      row.innerHTML = `<span class="route">${esc(t.from)} ← ${esc(t.to)}</span><span class="km">${t.km ? fmtKm(t.km) : '—'}</span>`;
+      row.appendChild(delButton(`למחוק את הקטע ${t.from} ← ${t.to} (${p.day})?`, () => {
+        data.trips = data.trips.filter(x => x.id !== t.id); save(); render(); fillFrom();
+      }));
+      li.appendChild(row);
+    }
+    ul.appendChild(li);
+  }
+}
+
+/* ===================== הוצאות ===================== */
+$('eDate').value = dateStr(new Date());
+
+$('expForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const msg = $('eMsg');
+  const date = $('eDate').value, desc = $('eDesc').value.trim();
+  const amount = parseFloat($('eAmount').value);
+  if (!date || !desc) return setMsg(msg, 'err', 'צריך למלא תאריך ותיאור.');
+  if (!(amount > 0)) return setMsg(msg, 'err', 'סכום צריך להיות מספר גדול מ-0.');
+
+  data.expenses.push({ id: uid(), date, amount, desc });
+  save();
+  showMonthOf(date);
+  render();
+
+  setMsg(msg, 'ok', `נשמר: ${desc}, ${money.format(amount)}`);
+  $('eAmount').value = '';
+  $('eDesc').value = '';
+});
+
+function renderExpenses() {
+  const exps = data.expenses
+    .filter(x => x.date.startsWith(monthPrefix()))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  $('totExp').textContent = money.format(exps.reduce((a, x) => a + x.amount, 0));
+  $('cntExp').textContent = exps.length;
+
+  const ul = $('expList');
+  ul.innerHTML = '';
+  if (!exps.length) { ul.innerHTML = '<li class="empty">אין הוצאות בחודש הזה.</li>'; return; }
+  for (const x of exps) {
+    const p = prettyDate(x.date);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="li-main">${esc(x.desc)} <small>${p.weekday} ${p.day}</small></div>
+      <div class="li-num">${money.format(x.amount)}</div>`;
+    li.appendChild(delButton(`למחוק את ההוצאה "${x.desc}" (${p.day})?`, () => {
+      data.expenses = data.expenses.filter(y => y.id !== x.id); save(); render();
+    }));
+    ul.appendChild(li);
+  }
+}
+
+/* ===================== סיכום וגרפים ===================== */
+const daysInMonth = m => new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+const prefixOf = m => `${m.getFullYear()}-${pad(m.getMonth() + 1)}`;
+const hoursFmt = h => fmtDur(Math.round(h * 60));
+
+// סכומים לכל יום בחודש. אינדקס 0 = יום 1.
+function dailySeries(month) {
+  const n = daysInMonth(month), pre = prefixOf(month);
+  const hours = Array(n).fill(0), km = Array(n).fill(0);
+  data.shifts.forEach(s => { if (s.date.startsWith(pre)) hours[+s.date.slice(8) - 1] += shiftMinutes(s) / 60; });
+  kmDates(pre).forEach(d => { km[+d.slice(8) - 1] = dayKm(d); });
+  return { n, hours, km };
+}
+
+function monthTotals(month) {
+  const pre = prefixOf(month);
+  const shifts = data.shifts.filter(s => s.date.startsWith(pre));
+  const mins = shifts.reduce((a, s) => a + shiftMinutes(s), 0);
+  const days = new Set(shifts.filter(s => s.out).map(s => s.date)).size;
+  const km = monthKm(pre);
+  const exp = data.expenses.filter(x => x.date.startsWith(pre)).reduce((a, x) => a + x.amount, 0);
+  const kmCost = data.settings.kmRate ? km * data.settings.kmRate : 0;
+  return { mins, days, km, exp, kmCost, grand: kmCost + exp };
+}
+
+// --- מספרים גדולים עם השוואה לחודש הקודם ---
+function deltaText(cur, prev, prevName) {
+  if (!prev) return cur ? `אין נתונים מ${prevName}` : '';
+  const pct = Math.round((cur - prev) / prev * 100);
+  if (pct === 0) return `ללא שינוי מ${prevName}`;
+  return `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}% מ${prevName}`;
+}
+
+function renderKpis() {
+  const cur = monthTotals(viewMonth);
+  const prevM = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
+  const prev = monthTotals(prevM);
+  const prevName = prevM.toLocaleDateString('he-IL', { month: 'long' });
+  const avg = cur.days ? Math.round(cur.mins / cur.days) : 0;
+  const tiles = [
+    { key: 'var(--c-hours)', label: 'שעות עבודה', value: fmtDur(cur.mins),
+      sub: cur.days ? `${cur.days} ימים · ממוצע ${fmtDur(avg)} ליום` : 'אין משמרות',
+      delta: deltaText(cur.mins, prev.mins, prevName) },
+    { key: 'var(--c-km)', label: 'ק״מ', value: fmtKm(cur.km),
+      sub: data.settings.kmRate ? `החזר ${money.format(cur.kmCost)}` : 'לא הוזן תעריף',
+      delta: deltaText(cur.km, prev.km, prevName) },
+    { key: null, label: 'סה״כ להחזר', value: money.format(cur.grand),
+      sub: 'נסיעות + הוצאות', delta: deltaText(cur.grand, prev.grand, prevName) },
+  ];
+  $('kpis').innerHTML = tiles.map(t => `
+    <div class="kpi">
+      <div class="kpi-label">${t.key ? `<i style="background:${t.key}"></i>` : ''}${t.label}</div>
+      <div class="kpi-value">${t.value}</div>
+      <div class="kpi-sub">${t.sub}</div>
+      ${t.delta ? `<div class="kpi-delta">${t.delta}</div>` : ''}
+    </div>`).join('');
+}
+
+// --- חלונית מידע (tooltip) ---
+const tip = $('tip');
+function showTip(el, info, ev) {
+  tip.replaceChildren();
+  const title = document.createElement('div');
+  title.className = 'tip-title';
+  title.textContent = info.title;
+  tip.appendChild(title);
+  for (const r of info.rows) {
+    const row = document.createElement('div');
+    row.className = 'tip-row';
+    const key = document.createElement('i'); key.style.background = r.color;
+    const val = document.createElement('b'); val.textContent = r.value;
+    const lab = document.createElement('span'); lab.textContent = r.label;
+    row.append(key, val, lab);
+    tip.appendChild(row);
+  }
+  tip.hidden = false;
+  const box = el.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const anchorY = ev && ev.clientY ? ev.clientY - 14 : box.top;
+  let x = box.left + box.width / 2 - tw / 2;
+  x = Math.max(8, Math.min(window.innerWidth - tw - 8, x));
+  let y = anchorY - th;
+  if (y < 60) y = (ev && ev.clientY ? ev.clientY + 20 : box.bottom + 8);
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+// מחבר חלונית מידע לאלמנט: עכבר, נגיעה ומקלדת.
+function bindTip(el, getInfo, onShow, onHide) {
+  const show = ev => { showTip(el, getInfo(), ev); if (onShow) onShow(); };
+  const hide = () => { tip.hidden = true; if (onHide) onHide(); };
+  el.addEventListener('pointerenter', e => { if (e.pointerType !== 'touch') show(e); });
+  el.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') hide(); });
+  el.addEventListener('click', show);
+  el.addEventListener('focus', () => show());
+  el.addEventListener('blur', hide);
+}
+// בגלילה: סוגרים את החלונית וגם מבטלים את הסימון של היום שנבחר.
+window.addEventListener('scroll', () => {
+  if (tip.hidden) return;
+  const a = document.activeElement;
+  if (a && a.matches && a.matches('.hit, .cal-cell')) a.blur(); else tip.hidden = true;
+}, { passive: true });
+
+function dayInfo(d, series) {
+  const p = prettyDate(`${prefixOf(viewMonth)}-${pad(d)}`);
+  return {
+    title: `${p.weekday} ${p.day}`,
+    rows: [
+      { color: 'var(--c-hours)', value: hoursFmt(series.hours[d - 1]), label: 'שעות' },
+      { color: 'var(--c-km)', value: fmtKm(series.km[d - 1]), label: 'ק״מ' },
+    ],
+  };
+}
+
+// --- לוח החודש ---
+const HEAT_STEPS = [4, 6, 8, 10]; // גבולות הדרגות בשעות
+const binOf = h => (h <= 0 ? 0 : 1 + HEAT_STEPS.filter(b => h >= b).length);
+
+function renderCalendar(series) {
+  const today = dateStr(new Date());
+  let html = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'].map(d => `<div class="cal-h">${d}</div>`).join('');
+  html += '<div></div>'.repeat(viewMonth.getDay()); // ימים ריקים לפני ה-1 בחודש
+  for (let d = 1; d <= series.n; d++) {
+    const h = series.hours[d - 1];
+    const ds = `${prefixOf(viewMonth)}-${pad(d)}`;
+    html += `<button type="button" class="cal-cell b${binOf(h)}${ds === today ? ' today' : ''}" data-day="${d}"
+      aria-label="${d} בחודש, ${h > 0 ? hoursFmt(h) + ' שעות' : 'לא עבדת'}">
+      <span class="d">${d}</span>${h > 0 ? `<span class="v">${hoursFmt(h)}</span>` : ''}</button>`;
+  }
+  $('cal').innerHTML = html;
+  $('cal').querySelectorAll('.cal-cell').forEach(el => bindTip(el, () => dayInfo(+el.dataset.day, series)));
+}
+
+// --- גרף עמודות לפי יום (SVG) ---
+// סולם "עגול" לציר: 0, 5, 10, 15 וכו'.
+function niceScale(max) {
+  if (!(max > 0)) max = 1;
+  const raw = max / 3, p = 10 ** Math.floor(Math.log10(raw)), n = raw / p;
+  const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+  const top = Math.ceil(max / step - 1e-9) * step;
+  const ticks = [];
+  for (let i = 0; i * step <= top + 1e-9; i++) ticks.push(+(i * step).toFixed(4));
+  return { top, ticks };
+}
+// עמודה עם פינות מעוגלות למעלה וישרה למטה.
+function colPath(x, w, base, top, r) {
+  const h = base - top;
+  if (h <= 0.5) return '';
+  r = Math.min(r, w / 2, h);
+  return `M${x},${base}V${top + r}Q${x},${top} ${x + r},${top}H${x + w - r}Q${x + w},${top} ${x + w},${top + r}V${base}Z`;
+}
+
+const SCREEN_INK = { text: 'var(--text)', muted: 'var(--ink-muted)', grid: 'var(--grid)', axis: 'var(--axis)', hl: 'var(--bg)' };
+const PAPER_INK = { text: '#14171a', muted: '#5b636b', grid: '#e1e0d9', axis: '#c3c2b7', hl: '#f3f4f6' };
+
+// גרף אחד או כמה גרפים אחד מעל השני, עם אותם ימים. יום 1 בצד ימין.
+function dayChartSVG({ width, n, panels, panelH = 110, interactive = false, ink, label }) {
+  const mR = 30, mL = 6, mT = 26, gap = 36, mB = 22;
+  const plotR = width - mR, plotW = plotR - mL;
+  const band = plotW / n;
+  const barW = Math.max(2, Math.min(24, band - 2, band * 0.72));
+  const H = mT + panels.length * panelH + (panels.length - 1) * gap + mB;
+  const xOf = i => plotR - (i + 0.5) * band;
+  const T = (x, y, txt, anchor, size, fill, weight = 400) =>
+    `<text x="${x}" y="${y}" text-anchor="${anchor}" style="font-size:${size}px;fill:${fill};font-weight:${weight}">${txt}</text>`;
+
+  let s = `<svg viewBox="0 0 ${width} ${H}" width="100%" style="display:block;direction:ltr;overflow:visible" role="img" aria-label="${label}">`;
+  if (interactive) s += `<rect class="hl" x="0" y="4" width="${band}" height="${H - mB - 2}" rx="4" style="fill:${ink.hl};opacity:0"/>`;
+
+  panels.forEach((p, k) => {
+    const top = mT + k * (panelH + gap), base = top + panelH;
+    const max = Math.max(0, ...p.values);
+    const { top: vmax, ticks } = niceScale(max * 1.12);
+    const y = v => base - (v / vmax) * panelH;
+    // כותרת הגרף עם ריבוע צבע
+    s += `<rect x="${plotR - 10}" y="${top - 21}" width="10" height="10" rx="2" style="fill:${p.color}"/>`;
+    s += T(plotR - 16, top - 12, p.title, 'end', 12, ink.text, 600);
+    // קווי רשת ותוויות ציר
+    for (const t of ticks) {
+      const yy = Math.round(y(t)) + 0.5;
+      s += `<line x1="${mL}" x2="${plotR}" y1="${yy}" y2="${yy}" style="stroke:${t === 0 ? ink.axis : ink.grid};stroke-width:1"/>`;
+      s += T(plotR + 5, yy + 4, t, 'start', 10.5, ink.muted);
+    }
+    // עמודות + תווית רק לעמודה הגבוהה ביותר
+    let mi = -1;
+    p.values.forEach((v, i) => {
+      if (v > 0) s += `<path d="${colPath(xOf(i) - barW / 2, barW, base, y(v), 4)}" style="fill:${p.color}"/>`;
+      if (v > 0 && (mi < 0 || v > p.values[mi])) mi = i;
+    });
+    if (mi >= 0) s += T(xOf(mi), y(p.values[mi]) - 5, p.fmt(p.values[mi]), 'middle', 11, ink.text, 600);
+  });
+
+  for (const d of [...new Set([1, 5, 10, 15, 20, 25, n])]) s += T(xOf(d - 1), H - 6, d, 'middle', 10.5, ink.muted);
+
+  if (interactive) {
+    for (let i = 0; i < n; i++) {
+      s += `<rect class="hit" data-day="${i + 1}" x="${plotR - (i + 1) * band}" y="0" width="${band}" height="${H - mB}"
+        tabindex="0" aria-label="יום ${i + 1}" style="fill:transparent;outline:none"/>`;
+    }
+  }
+  return s + '</svg>';
+}
+
+function renderDayCharts(series) {
+  const box = $('dayCharts');
+  if (!series.hours.some(v => v > 0) && !series.km.some(v => v > 0)) {
+    box.innerHTML = '<p class="empty-chart">אין נתונים בחודש הזה.</p>';
+    $('dayTable').innerHTML = '';
+    return;
+  }
+  box.innerHTML = dayChartSVG({
+    width: Math.max(280, box.clientWidth || 600),
+    n: series.n,
+    interactive: true,
+    ink: SCREEN_INK,
+    label: 'שעות וק״מ לפי יום בחודש',
+    panels: [
+      { title: 'שעות', color: 'var(--c-hours)', values: series.hours, fmt: hoursFmt },
+      { title: 'ק״מ', color: 'var(--c-km)', values: series.km, fmt: fmtKm },
+    ],
+  });
+  const hl = box.querySelector('.hl');
+  box.querySelectorAll('.hit').forEach(r => bindTip(r, () => dayInfo(+r.dataset.day, series),
+    () => { hl.setAttribute('x', r.getAttribute('x')); hl.style.opacity = 1; },
+    () => { hl.style.opacity = 0; }));
+
+  // אותם נתונים כטבלה (למי שמעדיף מספרים, ולנגישות)
+  const m = viewMonth.getMonth() + 1;
+  let rows = '';
+  for (let d = 1; d <= series.n; d++) {
+    if (!series.hours[d - 1] && !series.km[d - 1]) continue;
+    const p = prettyDate(`${prefixOf(viewMonth)}-${pad(d)}`);
+    rows += `<tr><td>${p.weekday} ${d}/${m}</td><td class="n">${hoursFmt(series.hours[d - 1])}</td><td class="n">${fmtKm(series.km[d - 1])}</td></tr>`;
+  }
+  $('dayTable').innerHTML = `<table class="data-table"><thead><tr><th>יום</th><th class="n">שעות</th><th class="n">ק״מ</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderSummary() {
+  renderKpis();
+  const series = dailySeries(viewMonth);
+  renderCalendar(series);
+  renderDayCharts(series);
+}
+// כשמשנים גודל חלון, מציירים מחדש כדי שהגרף יתאים לרוחב.
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { renderSummary(); renderReport(); }, 150); });
+
+/* ===================== דוח חודשי ===================== */
+$('rName').value = data.settings.name || '';
+$('rTo').value = data.settings.recipient || '';
+$('rName').addEventListener('input', () => { data.settings.name = $('rName').value.trim(); save(); renderReport(); });
+$('rTo').addEventListener('input', () => { data.settings.recipient = $('rTo').value.trim(); save(); renderReport(); });
+
+// שם הקובץ של ה-PDF נלקח מכותרת הדף, אז משנים אותה לרגע בזמן ההדפסה.
+$('printBtn').addEventListener('click', () => {
+  const old = document.title;
+  document.title = `דוח חודשי ${$('monthTitle').textContent}`;
+  window.print();
+  document.title = old;
+});
+
+// מסלול יום: אם הקטעים מתחברים (כל קטע מתחיל איפה שהקודם נגמר) - שרשרת אחת.
+function routeText(legs) {
+  if (!legs.length) return '';
+  const chain = [legs[0].from];
+  for (const l of legs) {
+    if (l.from !== chain[chain.length - 1]) return legs.map(x => `${x.from} ← ${x.to}`).join(', ');
+    chain.push(l.to);
+  }
+  return chain.join(' ← ');
+}
+
+// בזמן הדפסה מציירים את הגרף ברוחב של דף A4, כדי שהטקסט בו לא ייצא ענק או זעיר.
+window.addEventListener('beforeprint', () => renderReport(680));
+window.addEventListener('afterprint', () => renderReport());
+
+function renderReport(chartWidth) {
+  const pre = monthPrefix();
+  const shifts = data.shifts.filter(s => s.date.startsWith(pre));
+  const trips = data.trips.filter(t => t.date.startsWith(pre));
+  const exps = data.expenses.filter(x => x.date.startsWith(pre)).sort((a, b) => a.date.localeCompare(b.date));
+  const dates = [...new Set([...shifts.map(s => s.date), ...kmDates(pre)])].sort();
+  const rate = data.settings.kmRate;
+  const blank = '______________';
+
+  let totMin = 0, totKm = 0;
+  const rows = dates.map(date => {
+    const ds = shifts.filter(s => s.date === date).sort((a, b) => a.in.localeCompare(b.in));
+    const legs = legsOf(date);
+    const mins = ds.reduce((a, s) => a + shiftMinutes(s), 0);
+    const km = dayKm(date);
+    const o = odoOf(date);
+    totMin += mins; totKm += km;
+    const [, m, d] = date.split('-').map(Number);
+    const wd = new Date(date + 'T12:00').toLocaleDateString('he-IL', { weekday: 'short' });
+    const times = ds.map(s => s.out ? timeRange(s.in, s.out) : `${s.in}–פתוחה`).join(', ');
+    return `<tr>
+      <td class="t">${d}/${m} <span class="route">${wd}</span></td>
+      <td class="t">${times || '—'}</td>
+      <td class="n">${mins ? fmtDur(mins) : '—'}</td>
+      <td class="n">${km ? fmtKm(km) : '—'}</td>
+      <td class="route">${esc(routeText(legs))}${o ? `${legs.length ? '<br>' : ''}${odoText(o)}` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  const kmCost = rate ? totKm * rate : null;
+  const expTotal = exps.reduce((a, x) => a + x.amount, 0);
+  const grand = (kmCost || 0) + expTotal;
+  const workDays = new Set(shifts.map(s => s.date)).size;
+
+  const expRows = exps.map(x => {
+    const [, m, d] = x.date.split('-').map(Number);
+    return `<tr><td class="t">${d}/${m}</td><td>${esc(x.desc)}</td><td class="n">${money.format(x.amount)}</td></tr>`;
+  }).join('');
+
+  $('sheet').innerHTML = `
+    <h3>דוח חודשי · ${$('monthTitle').textContent}</h3>
+    <div class="meta">
+      <span>שם: ${esc(data.settings.name || blank)}</span>
+      <span>לכבוד: ${esc(data.settings.recipient || blank)}</span>
+      <span>הופק: ${new Date().toLocaleDateString('he-IL')}</span>
+    </div>
+
+    <div class="sum-grid">
+      <div class="sum"><b>${fmtDur(totMin)}</b><span>שעות עבודה</span></div>
+      <div class="sum"><b>${workDays}</b><span>ימי עבודה</span></div>
+      <div class="sum"><b>${fmtKm(totKm)}</b><span>ק״מ</span></div>
+      <div class="sum"><b>${kmCost !== null ? money.format(kmCost) : '—'}</b><span>${rate ? 'החזר נסיעות' : 'לא הוזן תעריף'}</span></div>
+      <div class="sum"><b>${money.format(expTotal)}</b><span>הוצאות</span></div>
+      <div class="sum total"><b>${money.format(grand)}</b><span>סה״כ להחזר</span></div>
+    </div>
+
+    ${totMin ? `<div class="sheet-chart">${dayChartSVG({
+      width: chartWidth || Math.max(300, ($('sheet').clientWidth || 684) - 44),
+      n: daysInMonth(viewMonth),
+      panelH: 70,
+      ink: PAPER_INK,
+      label: 'שעות עבודה לפי יום',
+      panels: [{ title: 'שעות עבודה לפי יום', color: '#2a78d6', values: dailySeries(viewMonth).hours, fmt: hoursFmt }],
+    })}</div>` : ''}
+
+    <h4>ימי עבודה ונסיעות</h4>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>תאריך</th><th>שעות</th><th class="n">סה״כ</th><th class="n">ק״מ</th><th>מסלול</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="none">אין נתונים בחודש הזה.</td></tr>'}</tbody>
+      <tfoot><tr><td>סה״כ</td><td></td><td class="n">${fmtDur(totMin)}</td><td class="n">${fmtKm(totKm)}</td><td></td></tr></tfoot>
+    </table></div>
+    <div class="calc">${rate
+      ? `החזר נסיעות: ${fmtKm(totKm)} ק״מ × ${money.format(rate)} = ${money.format(kmCost)}`
+      : 'לא הוזן תעריף לק״מ, לכן אין חישוב החזר נסיעות.'}</div>
+
+    <h4>הוצאות</h4>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>תאריך</th><th>תיאור</th><th class="n">סכום</th></tr></thead>
+      <tbody>${expRows || '<tr><td colspan="3" class="none">אין הוצאות בחודש הזה.</td></tr>'}</tbody>
+      <tfoot><tr><td>סה״כ</td><td></td><td class="n">${money.format(expTotal)}</td></tr></tfoot>
+    </table></div>
+
+    <div class="sign">
+      <div>חתימת העובד ותאריך</div>
+      <div>חתימת המנהל ותאריך</div>
+    </div>`;
+}
+
+/* ===================== גיבוי: ייצוא וייבוא ===================== */
+// ייצוא: שומר את כל הנתונים לקובץ JSON שיורד למחשב / לטלפון.
+$('exportBtn').addEventListener('click', () => {
+  const payload = { app: 'worklog', version: 1, exported: new Date().toISOString(), ...data };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `worklog-${dateStr(new Date())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setMsg($('dMsg'), 'ok', `נשמר הקובץ ${a.download}`);
+});
+
+$('importBtn').addEventListener('click', () => $('importFile').click());
+
+// בדיקות תקינות לכל רשומה שמגיעה מקובץ.
+const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const isTime = s => typeof s === 'string' && /^\d{2}:\d{2}$/.test(s);
+const isText = s => typeof s === 'string' && s.trim() !== '';
+const posNum = n => typeof n === 'number' && Number.isFinite(n) && n > 0;
+
+// לכל סוג: בדיקה + אילו שדות לקחת (שדות אחרים בקובץ מתעלמים מהם).
+const importRules = {
+  shifts: {
+    ok: s => isDate(s.date) && isTime(s.in) && isTime(s.out),
+    pick: (s) => ({ date: s.date, in: s.in, out: s.out }),
+  },
+  trips: {
+    ok: t => isDate(t.date) && isText(t.from) && isText(t.to) && (t.km == null || posNum(t.km)),
+    pick: (t, i) => ({ date: t.date, from: t.from.trim(), to: t.to.trim(), km: t.km ?? null,
+                       t: Number.isFinite(t.t) ? t.t : i }),
+  },
+  odo: {
+    ok: o => {
+      const num = v => v == null || (typeof v === 'number' && Number.isFinite(v) && v >= 0);
+      return isDate(o.date) && num(o.start) && num(o.end) && (o.start != null || o.end != null)
+        && !(o.start != null && o.end != null && o.end <= o.start);
+    },
+    pick: o => ({ date: o.date, start: o.start ?? null, end: o.end ?? null }),
+  },
+  expenses: {
+    ok: x => isDate(x.date) && posNum(x.amount) && isText(x.desc),
+    pick: (x) => ({ date: x.date, amount: x.amount, desc: x.desc.trim() }),
+  },
+};
+
+$('importFile').addEventListener('change', async () => {
+  const input = $('importFile');
+  const file = input.files[0];
+  input.value = ''; // כדי שאפשר יהיה לבחור שוב את אותו קובץ
+  if (!file) return;
+  const msg = $('dMsg');
+
+  let incoming;
+  try { incoming = JSON.parse(await file.text()); } catch (e) { incoming = null; }
+  if (!incoming || typeof incoming !== 'object') {
+    return setMsg(msg, 'err', 'לא הצלחתי לקרוא את הקובץ. זה לא קובץ גיבוי תקין.');
+  }
+
+  const add = { shifts: [], trips: [], expenses: [], odo: [] };
+  let bad = 0, dup = 0;
+  for (const kind of Object.keys(add)) {
+    const list = Array.isArray(incoming[kind]) ? incoming[kind] : [];
+    const have = new Set(data[kind].map(r => r.id));
+    const odoDates = new Set(data.odo.map(o => o.date)); // מד אוץ: רק רשומה אחת לכל יום
+    list.forEach((r, i) => {
+      if (!r || typeof r !== 'object' || !importRules[kind].ok(r)) { bad++; return; }
+      const id = r.id ? String(r.id) : uid();
+      if (have.has(id)) { dup++; return; } // כבר יובא בעבר
+      if (kind === 'odo') { if (odoDates.has(r.date)) { dup++; return; } odoDates.add(r.date); }
+      have.add(id);
+      add[kind].push({ id, ...importRules[kind].pick(r, i) });
+    });
+  }
+
+  const total = add.shifts.length + add.trips.length + add.expenses.length + add.odo.length;
+  const extra = (dup ? ` ${dup} כבר קיימות.` : '') + (bad ? ` ${bad} לא תקינות.` : '');
+  if (!total) return setMsg(msg, 'err', 'אין בקובץ רשומות חדשות.' + extra);
+
+  const lines = [
+    'בקובץ נמצאו רשומות חדשות:',
+    `משמרות: ${add.shifts.length}`,
+    `קטעי נסיעה: ${add.trips.length}`,
+    `הוצאות: ${add.expenses.length}`,
+    `ימים עם מד אוץ: ${add.odo.length}`,
+  ];
+  if (dup) lines.push(`(${dup} כבר קיימות ולא ייובאו שוב)`);
+  if (bad) lines.push(`(${bad} לא תקינות ולא ייובאו)`);
+  lines.push('', 'להוסיף אותן? הנתונים הקיימים לא יימחקו.');
+  if (!confirm(lines.join('\n'))) return setMsg(msg, '', 'הייבוא בוטל.');
+
+  for (const kind of Object.keys(add)) data[kind].push(...add[kind]);
+  const rate = incoming.settings && incoming.settings.kmRate;
+  if (!data.settings.kmRate && posNum(rate)) {
+    data.settings.kmRate = rate;
+    $('kmRate').value = rate;
+  }
+  save();
+
+  const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo].map(r => r.date).sort()[0];
+  showMonthOf(first);
+  render();
+  fillFrom();
+  fillOdo();
+  setMsg(msg, 'ok', `יובאו ${total} רשומות.` + extra);
+});
+
+/* ===================== הפעלה ===================== */
+function render() {
+  $('monthTitle').textContent = viewMonth.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+  renderStatus();
+  renderShifts();
+  renderPlaces();
+  renderTrips();
+  renderExpenses();
+  renderSummary();
+  renderReport();
+}
+render();
+fillFrom();
+fillOdo();
+// מרענן את השעון כל 20 שניות בזמן משמרת.
+setInterval(renderStatus, 20000);
+</script>
+</body>
+</html>
