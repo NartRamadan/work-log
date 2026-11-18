@@ -248,7 +248,9 @@
   .tip-row b { font-variant-numeric: tabular-nums; }
   .tip-row span { color: var(--muted); }
 
-  .sheet-chart { margin-top: 18px; }
+  .sheet-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+  .sheet-charts.one { grid-template-columns: 1fr; }
+  @media (max-width: 520px) { .sheet-charts { grid-template-columns: 1fr; } }
 
   /* ---- דף הדוח: תמיד נראה כמו נייר לבן, גם במצב כהה ---- */
   .sheet {
@@ -284,12 +286,39 @@
   .sheet .calc { color: var(--p-muted); font-size: 13px; margin-top: 6px; }
   .sheet .none { color: var(--p-muted); text-align: center; padding: 10px; }
   .sheet tr { break-inside: avoid; }
-  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 48px; break-inside: avoid; }
+  /* טבלת ימים: צבע מתחלף, שישי-שבת מסומנים, ושורת סיכום לכל שבוע */
+  .sheet tbody tr.alt td { background: #f6f7f9; }
+  .sheet tbody tr.we td:first-child { color: var(--p-accent); font-weight: 600; }
+  .sheet tbody tr.wk td {
+    background: var(--p-soft); font-weight: 700; font-size: 12px;
+    border-bottom: 1px solid var(--p-accent);
+  }
+  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 40px; break-inside: avoid; }
   .sign div { border-top: 1px solid var(--p-text); padding-top: 4px; font-size: 12px; color: var(--p-muted); }
+  @media (min-width: 640px) { .sum-grid { grid-template-columns: repeat(6, 1fr); } }
   @media (max-width: 480px) {
     .sheet { padding: 14px; font-size: 13px; }
     .sum-grid { grid-template-columns: repeat(2, 1fr); }
   }
+
+  /* ---- מצב "דף A4": נדלק רגע לפני הדפסה. צפוף, ברוחב של דף, כדי שאפשר יהיה
+     למדוד את הגובה ולהקטין אם צריך - וכך חודש שלם תמיד נכנס בעמוד אחד ---- */
+  .sheet.compact { width: 688px; max-width: none; border: 0; border-radius: 0; padding: 0; font-size: 11.5px; }
+  .sheet.compact h3 { font-size: 19px; }
+  .sheet.compact .meta { margin: 2px 0 10px; }
+  .sheet.compact .sum-grid { grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .sheet.compact .sum { padding: 5px 4px; }
+  .sheet.compact .sum b { font-size: 15px; }
+  .sheet.compact .sum span { font-size: 10.5px; }
+  .sheet.compact h4 { font-size: 13px; margin: 12px 0 4px; padding-bottom: 2px; }
+  .sheet.compact th, .sheet.compact td { padding: 2px 5px; }
+  .sheet.compact th { font-size: 10.5px; }
+  .sheet.compact .route { font-size: 10.5px; }
+  .sheet.compact tbody tr.wk td { font-size: 10.5px; }
+  .sheet.compact .calc { font-size: 11px; margin-top: 3px; }
+  .sheet.compact .sheet-charts { grid-template-columns: 1fr 1fr; margin-top: 8px; gap: 14px; }
+  .sheet.compact .sheet-charts.one { grid-template-columns: 1fr; }
+  .sheet.compact .sign { margin-top: 26px; }
 
   /* ---- הדפסה: רק דף הדוח, בלי כפתורים ותפריטים ---- */
   @page { size: A4; margin: 14mm; }
@@ -1088,8 +1117,8 @@ function colPath(x, w, base, top, r) {
   return `M${x},${base}V${top + r}Q${x},${top} ${x + r},${top}H${x + w - r}Q${x + w},${top} ${x + w},${top + r}V${base}Z`;
 }
 
-const SCREEN_INK = { text: 'var(--text)', muted: 'var(--ink-muted)', grid: 'var(--grid)', axis: 'var(--axis)', hl: 'var(--bg)' };
-const PAPER_INK = { text: '#14171a', muted: '#5b636b', grid: '#e1e0d9', axis: '#c3c2b7', hl: '#f3f4f6' };
+const SCREEN_INK = { text: 'var(--text)', muted: 'var(--ink-muted)', grid: 'var(--grid)', axis: 'var(--axis)', hl: 'var(--bg)', halo: 'var(--card)' };
+const PAPER_INK = { text: '#14171a', muted: '#5b636b', grid: '#e1e0d9', axis: '#c3c2b7', hl: '#f3f4f6', halo: '#ffffff' };
 
 // גרף אחד או כמה גרפים אחד מעל השני, עם אותם ימים. יום 1 בצד ימין.
 function dayChartSVG({ width, n, panels, panelH = 110, interactive = false, ink, label }) {
@@ -1126,6 +1155,15 @@ function dayChartSVG({ width, n, panels, panelH = 110, interactive = false, ink,
       if (v > 0 && (mi < 0 || v > p.values[mi])) mi = i;
     });
     if (mi >= 0) s += T(xOf(mi), y(p.values[mi]) - 5, p.fmt(p.values[mi]), 'middle', 11, ink.text, 600);
+    // קו ממוצע (לא חובה): קו דק לרוחב הגרף + תווית בצד שמאל.
+    // הטקסט נכתב "מספר ואז מילה", כי בתוך הגרף הכיוון הוא משמאל לימין - כך בעין זה נקרא "ממוצע 7:49".
+    if (p.avg > 0) {
+      const ya = Math.round(y(p.avg)) + 0.5;
+      s += `<line x1="${mL}" x2="${plotR}" y1="${ya}" y2="${ya}" style="stroke:${ink.text};stroke-width:1;opacity:.5"/>`;
+      // מסגרת בצבע הרקע סביב האותיות, כדי שהכיתוב יהיה קריא גם כשהוא עובר מעל עמודה.
+      s += `<text x="${mL + 2}" y="${ya - 4}" text-anchor="start" style="font-size:10px;font-weight:600;fill:${ink.text};`
+        + `paint-order:stroke;stroke:${ink.halo};stroke-width:3px;stroke-linejoin:round">${p.fmt(p.avg)} ממוצע</text>`;
+    }
   });
 
   for (const d of [...new Set([1, 5, 10, 15, 20, 25, n])]) s += T(xOf(d - 1), H - 6, d, 'middle', 10.5, ink.muted);
@@ -1194,9 +1232,34 @@ $('rTo').addEventListener('input', () => { data.settings.recipient = $('rTo').va
 $('printBtn').addEventListener('click', () => {
   const old = document.title;
   document.title = `דוח חודשי ${$('monthTitle').textContent}`;
+  fitForPrint();
   window.print();
   document.title = old;
 });
+
+// עמוד אחד תמיד: מדליקים מצב "דף A4", מודדים את הגובה, ואם הדוח גבוה מעמוד - מקטינים
+// את כולו באותו יחס (zoom). אחרי ההדפסה חוזרים לתצוגה הרגילה.
+const PAGE_H = 1005; // גובה התוכן בדף A4 עם שוליים 14 מ"מ ≈ 1017 פיקסלים, פחות מרווח ביטחון
+function fitForPrint() {
+  const s = $('sheet');
+  s.style.zoom = '';
+  s.classList.add('compact');
+  renderReport(688);
+  // מודדים, מקטינים, ומודדים שוב: אחרי הקטנה טקסט יכול להישבר אחרת והגובה משתנה קצת.
+  let zoom = 1;
+  for (let i = 0; i < 3; i++) {
+    const h = s.getBoundingClientRect().height; // הגובה האמיתי על המסך, כולל ההקטנה
+    if (h <= PAGE_H) break;
+    zoom = zoom * PAGE_H / h - 0.002;
+    s.style.zoom = zoom.toFixed(3);
+  }
+}
+function unfitAfterPrint() {
+  const s = $('sheet');
+  s.classList.remove('compact');
+  s.style.zoom = '';
+  renderReport();
+}
 
 // מסלול יום: אם הקטעים מתחברים (כל קטע מתחיל איפה שהקודם נגמר) - שרשרת אחת.
 function routeText(legs) {
@@ -1210,10 +1273,12 @@ function routeText(legs) {
 }
 
 // בזמן הדפסה מציירים את הגרף ברוחב של דף A4, כדי שהטקסט בו לא ייצא ענק או זעיר.
-window.addEventListener('beforeprint', () => renderReport(680));
-window.addEventListener('afterprint', () => renderReport());
+// גם כשמדפיסים מתפריט הדפדפן (Ctrl+P) ולא מהכפתור. 688px = רוחב התוכן בדף A4 עם שוליים.
+window.addEventListener('beforeprint', () => { if (!$('sheet').classList.contains('compact')) fitForPrint(); });
+window.addEventListener('afterprint', unfitAfterPrint);
 
 function renderReport(chartWidth) {
+  if (!chartWidth && $('sheet').classList.contains('compact')) chartWidth = 688;
   const pre = monthPrefix();
   const shifts = data.shifts.filter(s => s.date.startsWith(pre));
   const trips = data.trips.filter(t => t.date.startsWith(pre));
@@ -1223,29 +1288,63 @@ function renderReport(chartWidth) {
   const blank = '______________';
 
   let totMin = 0, totKm = 0;
-  const rows = dates.map(date => {
+  // שבוע = ראשון עד שבת. בסוף כל שבוע נכנסת שורת סיכום.
+  const weekOf = date => { const d = new Date(date + 'T12:00'); d.setDate(d.getDate() - d.getDay()); return dateStr(d); };
+  const dm = date => { const [, m, d] = date.split('-').map(Number); return `${d}/${m}`; };
+  let rows = '', wk = null, wkMin = 0, wkKm = 0, wkFirst = '', wkLast = '', alt = false;
+  const closeWeek = () => {
+    if (wk === null) return;
+    const span = wkFirst === wkLast ? dm(wkFirst) : timeRange(dm(wkFirst), dm(wkLast));
+    rows += `<tr class="wk"><td colspan="2">סה״כ שבוע ${span}</td>
+      <td class="n">${fmtDur(wkMin)}</td><td class="n">${wkKm ? fmtKm(wkKm) : '—'}</td><td></td></tr>`;
+  };
+  for (const date of dates) {
+    const w = weekOf(date);
+    if (w !== wk) { closeWeek(); wk = w; wkMin = 0; wkKm = 0; wkFirst = date; alt = false; }
+    wkLast = date;
     const ds = shifts.filter(s => s.date === date).sort((a, b) => a.in.localeCompare(b.in));
     const legs = legsOf(date);
     const mins = ds.reduce((a, s) => a + shiftMinutes(s), 0);
     const km = dayKm(date);
     const o = odoOf(date);
-    totMin += mins; totKm += km;
-    const [, m, d] = date.split('-').map(Number);
+    totMin += mins; totKm += km; wkMin += mins; wkKm += km;
+    const dow = new Date(date + 'T12:00').getDay();
     const wd = new Date(date + 'T12:00').toLocaleDateString('he-IL', { weekday: 'short' });
     const times = ds.map(s => s.out ? timeRange(s.in, s.out) : `${s.in}–פתוחה`).join(', ');
-    return `<tr>
-      <td class="t">${d}/${m} <span class="route">${wd}</span></td>
+    const cls = [alt ? 'alt' : '', dow >= 5 ? 'we' : ''].join(' ').trim(); // 5 = שישי, 6 = שבת
+    alt = !alt;
+    rows += `<tr${cls ? ` class="${cls}"` : ''}>
+      <td class="t">${dm(date)} <span class="route">${wd}</span></td>
       <td class="t">${times || '—'}</td>
       <td class="n">${mins ? fmtDur(mins) : '—'}</td>
       <td class="n">${km ? fmtKm(km) : '—'}</td>
       <td class="route">${esc(routeText(legs))}${o ? `${legs.length ? '<br>' : ''}${odoText(o)}` : ''}</td>
     </tr>`;
-  }).join('');
+  }
+  closeWeek();
 
   const kmCost = rate ? totKm * rate : null;
   const expTotal = exps.reduce((a, x) => a + x.amount, 0);
   const grand = (kmCost || 0) + expTotal;
   const workDays = new Set(shifts.map(s => s.date)).size;
+
+  // שני גרפים: שעות וק"מ לפי יום, עם קו ממוצע. גרף בלי נתונים לא מוצג.
+  const series = dailySeries(viewMonth);
+  const kmDays = series.km.filter(v => v > 0).length;
+  const charts = [
+    { title: 'שעות עבודה לפי יום', color: '#2a78d6', values: series.hours, fmt: hoursFmt,
+      avg: workDays ? totMin / workDays / 60 : 0 },
+    { title: 'ק״מ לפי יום', color: '#eb6834', values: series.km, fmt: fmtKm,
+      avg: kmDays ? totKm / kmDays : 0 },
+  ].filter(p => p.values.some(v => v > 0));
+  const fullW = chartWidth || Math.max(300, ($('sheet').clientWidth || 732) - 44);
+  // בטלפון (מסך צר) הגרפים אחד מתחת לשני; במחשב ובהדפסה - זה לצד זה.
+  const stacked = charts.length < 2 || (!chartWidth && window.matchMedia('(max-width: 520px)').matches);
+  const cw = stacked ? fullW : Math.floor((fullW - 16) / 2);
+  const chartsHtml = charts.length
+    ? `<div class="sheet-charts${charts.length < 2 ? ' one' : ''}">${charts.map(p => `<div>${dayChartSVG({
+        width: cw, n: series.n, panelH: 62, ink: PAPER_INK, label: p.title, panels: [p] })}</div>`).join('')}</div>`
+    : '';
 
   const expRows = exps.map(x => {
     const [, m, d] = x.date.split('-').map(Number);
@@ -1269,14 +1368,7 @@ function renderReport(chartWidth) {
       <div class="sum total"><b>${money.format(grand)}</b><span>סה״כ להחזר</span></div>
     </div>
 
-    ${totMin ? `<div class="sheet-chart">${dayChartSVG({
-      width: chartWidth || Math.max(300, ($('sheet').clientWidth || 684) - 44),
-      n: daysInMonth(viewMonth),
-      panelH: 70,
-      ink: PAPER_INK,
-      label: 'שעות עבודה לפי יום',
-      panels: [{ title: 'שעות עבודה לפי יום', color: '#2a78d6', values: dailySeries(viewMonth).hours, fmt: hoursFmt }],
-    })}</div>` : ''}
+    ${chartsHtml}
 
     <h4>ימי עבודה ונסיעות</h4>
     <div class="tbl-wrap"><table>
@@ -1289,11 +1381,11 @@ function renderReport(chartWidth) {
       : 'לא הוזן תעריף לק״מ, לכן אין חישוב החזר נסיעות.'}</div>
 
     <h4>הוצאות</h4>
-    <div class="tbl-wrap"><table>
+    ${expRows ? `<div class="tbl-wrap"><table>
       <thead><tr><th>תאריך</th><th>תיאור</th><th class="n">סכום</th></tr></thead>
-      <tbody>${expRows || '<tr><td colspan="3" class="none">אין הוצאות בחודש הזה.</td></tr>'}</tbody>
+      <tbody>${expRows}</tbody>
       <tfoot><tr><td>סה״כ</td><td></td><td class="n">${money.format(expTotal)}</td></tr></tfoot>
-    </table></div>
+    </table></div>` : '<div class="calc">אין הוצאות בחודש הזה.</div>'}
 
     <div class="sign">
       <div>חתימת העובד ותאריך</div>
