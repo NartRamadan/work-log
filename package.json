@@ -10,7 +10,6 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "bugs": {
     "url": "https://github.com/NartRamadan/work-log/issues"
   },
@@ -18,5 +17,6 @@
   "description": "",
   "devDependencies": {
     "@playwright/test": "^1.65.1"
-  }
+  },
+  "private": true
 }

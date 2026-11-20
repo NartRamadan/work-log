@@ -3,8 +3,8 @@ const { test, expect } = require('@playwright/test');
 
 // Unicode direction marks. The app puts each time range between these marks.
 // They keep the range in left-to-right order inside Hebrew text.
-const LRI = '⁦';
-const PDI = '⁩';
+const LRI = '\u2066';
+const PDI = '\u2069';
 
 test('manual shift: saves the shift, shows the total, and keeps the time range in order', async ({ page }) => {
   // Each test starts with an empty browser, so the app has no data.
