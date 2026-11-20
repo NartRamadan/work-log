@@ -1,0 +1,22 @@
+{
+  "name": "work-log",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NartRamadan/work-log.git"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/NartRamadan/work-log/issues"
+  },
+  "homepage": "https://github.com/NartRamadan/work-log#readme",
+  "description": "",
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  },
+  "private": true
+}
