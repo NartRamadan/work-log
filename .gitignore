@@ -1,2 +1,7 @@
 # גיבויים ידניים מלפני Git. מעכשיו ההיסטוריה של Git היא הגיבוי.
 backup/
+
+# Playwright tests: installed packages and test output.
+node_modules/
+test-results/
+playwright-report/
