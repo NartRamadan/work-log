@@ -14,10 +14,14 @@ async function openWith(page, data) {
 
 // Import a JSON object as a file. Accept the confirm dialog.
 async function importObject(page, obj) {
-  page.once('dialog', d => d.accept());
+  let message = '';
+  page.once('dialog', d => { message = d.message(); d.accept(); });
   await page.locator('#importFile').setInputFiles({
     name: 'import.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(obj)),
   });
+  // Wait until the import ends (green message).
+  await expect(page.locator('#dMsg')).toHaveClass(/ok/);
+  return message;
 }
 
 const base = { minutes: 360, hourRate: 100, kmCost: 165, expTotal: 35, taxPct: 3, taxScope: 'hours' };
@@ -61,15 +65,16 @@ test('import sets empty pay settings and keeps existing ones', async ({ page }) 
 
   // Empty app: the values from the file are used.
   await openWith(page, null);
-  await importObject(page, file);
-  await expect.poll(() => page.evaluate(() => paySettings()))
-    .toEqual({ hourRate: 999, taxPct: 50, taxScope: 'all' });
+  const message = await importObject(page, file);
+  expect(await page.evaluate(() => paySettings())).toEqual({ hourRate: 999, taxPct: 50, taxScope: 'all' });
+  // The confirm dialog lists the pay settings before they change.
+  expect(message).toContain('תעריף לשעה');
+  expect(message).toContain('ניכוי מס במקור');
 
   // App with values: the values in the app stay.
   await openWith(page, { shifts: [], trips: [], expenses: [], odo: [],
     settings: { kmRate: null, hourRate: 120, taxPct: 3, taxScope: 'hours' } });
   await importObject(page, file);
-  await page.waitForTimeout(300);
   expect(await page.evaluate(() => paySettings())).toEqual({ hourRate: 120, taxPct: 3, taxScope: 'hours' });
 });
 
@@ -171,4 +176,41 @@ test('report: the tax value is a normal negative money value', async ({ page }) 
   // A minus sign inside a left-to-right isolate with right-to-left marks shows at the wrong end.
   await openReport(page, {});
   await expect(page.locator('#payBlock .pay-tax td.n')).toHaveText(await fmt(page, -18));
+});
+
+test('import does not change the tax scope when the app already has a tax percent', async ({ page }) => {
+  // The user never touched the select, so taxScope is not saved. The select shows "hours only".
+  await openWith(page, { shifts: [], trips: [], expenses: [], odo: [], settings: { kmRate: null, taxPct: 3 } });
+  await importObject(page, { app: 'worklog', version: 1, trips: [], expenses: [], odo: [],
+    shifts: [{ id: 'test-s-2', date: '2026-11-03', in: '08:00', out: '09:00' }],
+    settings: { taxPct: 50, taxScope: 'all' } });
+  expect(await page.evaluate(() => paySettings())).toEqual({ hourRate: null, taxPct: 3, taxScope: 'hours' });
+});
+
+test('report: the money lines add up to the total before withholding', async ({ page }) => {
+  // 12.3 km x 1.65 = 20.295 (20.294999... in floating point). The lines must add up.
+  await page.goto('index.html');
+  const today = await page.evaluate(() => dateStr(new Date()));
+  await openWith(page, {
+    shifts: [{ id: 's1', date: today, in: '08:00', out: '14:00' }],
+    trips: [{ id: 't1', date: today, from: 'בית', to: 'נגריית בדיקה', km: 12.3, t: 0 }],
+    expenses: [], odo: [],
+    settings: { kmRate: 1.65, hourRate: 100, taxPct: null },
+  });
+  await page.locator('.tab[data-tab="report"]').click();
+  const km = await page.locator('#payBlock .pay-km td.n').innerText();
+  const gross = await page.locator('#payBlock .pay-gross td.n').innerText();
+  const sum = await page.evaluate(([k]) => money.format(600 + Number(k.replace(/[^0-9.]/g, ''))), [km]);
+  expect(gross).toBe(sum);
+});
+
+test('report: zero tax shows as zero, not as minus zero', async ({ page }) => {
+  await openReport(page, { hourRate: null });
+  await expect(page.locator('#payBlock .pay-tax td.n')).toHaveText(await fmt(page, 0));
+});
+
+test('report: no km rate shows "not entered", not zero', async ({ page }) => {
+  await openReport(page, { kmRate: null });
+  await expect(page.locator('#payBlock .pay-km')).toContainText('לא הוזן תעריף');
+  await expect(page.locator('#payBlock .pay-km td.n')).toHaveText('—');
 });

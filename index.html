@@ -608,7 +608,7 @@ const HOME = 'בית';
 
 function emptyData() {
   return { shifts: [], trips: [], expenses: [], odo: [],
-    // taxScope: null = המשתמש עוד לא בחר. paySettings() מחזיר אז 'hours'.
+    // taxScope: null = the user did not select a value. paySettings() then returns 'hours'.
     settings: { kmRate: null, hourRate: null, taxPct: null, taxScope: null } };
 }
 function load() {
@@ -636,19 +636,19 @@ const timeStr = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const fmtDur = m => `${Math.floor(m / 60)}:${pad(m % 60)}`;
 
-/* ===================== תשלום: שעות וניכוי מס במקור ===================== */
-// טקסט בסדר "משמאל לימין" בתוך עברית (סימני LRI ו-PDI), כדי שמספרים לא יתהפכו.
-// הסימנים נבנים מקוד התו, כדי שלא יהיה בקובץ תו נסתר.
+/* ===================== Pay: hours and tax withholding ===================== */
+// Put text between LRI and PDI marks, so numbers stay left-to-right inside Hebrew text.
+// The marks are made from their character codes, so the file has no hidden characters.
 const ltr = s => String.fromCharCode(0x2066) + s + String.fromCharCode(0x2069);
-// עיגול לאגורות.
-const round2 = n => Math.round(n * 100) / 100;
-// הגדרות התשלום, עם ברירות מחדל. בנתונים ישנים אין את השדות האלה.
+// Round to agorot (2 decimals). EPSILON corrects values such as 1.005.
+const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+// Pay settings with defaults. Old saved data does not have these fields.
 const paySettings = () => ({
   hourRate: data.settings.hourRate ?? null,
   taxPct: data.settings.taxPct ?? null,
   taxScope: data.settings.taxScope === 'all' ? 'all' : 'hours',
 });
-// חישוב התשלום לחודש. ניכוי על "שעות" = רק על התשלום לשעות. ניכוי על "הכל" = על כל הסכום.
+// Pay for the month. Scope 'hours': withholding on the hours pay only. Scope 'all': on the full sum.
 function payBreakdown({ minutes, hourRate, kmCost, expTotal, taxPct, taxScope }) {
   const hoursPay = round2(minutes / 60 * (hourRate || 0));
   const gross = round2(hoursPay + (kmCost || 0) + (expTotal || 0));
@@ -1312,7 +1312,7 @@ $('rName').value = data.settings.name || '';
 $('rTo').value = data.settings.recipient || '';
 $('rName').addEventListener('input', () => { data.settings.name = $('rName').value.trim(); save(); renderReport(); });
 $('rTo').addEventListener('input', () => { data.settings.recipient = $('rTo').value.trim(); save(); renderReport(); });
-// ניכוי מס במקור: אחוז בין 0 ל-100 (לא כולל 0). ערך אחר = אין ניכוי.
+// Tax withholding: a percent above 0 and not more than 100. Any other value = no withholding.
 $('taxPct').value = data.settings.taxPct ?? '';
 $('taxPct').addEventListener('change', () => {
   const v = parseFloat($('taxPct').value);
@@ -1422,7 +1422,7 @@ function renderReport(chartWidth) {
   }
   closeWeek();
 
-  const kmCost = rate ? totKm * rate : null;
+  const kmCost = rate ? round2(totKm * rate) : null;
   const expTotal = exps.reduce((a, x) => a + x.amount, 0);
   const ps = paySettings();
   const pay = payBreakdown({ minutes: totMin, hourRate: ps.hourRate, kmCost, expTotal, taxPct: ps.taxPct, taxScope: ps.taxScope });
@@ -1433,12 +1433,12 @@ function renderReport(chartWidth) {
       ${ps.hourRate
         ? payRow('pay-hours', `שעות: ${ltr(`${fmtDur(totMin)} × ${money.format(ps.hourRate)}`)} לשעה`, money.format(pay.hoursPay))
         : payRow('pay-hours', 'שעות: לא הוזן תעריף לשעה', '—')}
-      ${payRow('pay-km', 'החזר נסיעות', money.format(kmCost || 0))}
+      ${rate ? payRow('pay-km', 'החזר נסיעות', money.format(kmCost)) : payRow('pay-km', 'החזר נסיעות: לא הוזן תעריף לק״מ', '—')}
       ${payRow('pay-exp', 'הוצאות', money.format(expTotal))}
       ${payRow('pay-gross', 'סה״כ לפני ניכוי (סכום לקבלה)', money.format(pay.gross))}
       ${ps.taxPct
         ? payRow('pay-tax', `ניכוי מס במקור ${ltr(`${ps.taxPct}%`)} (${ps.taxScope === 'all' ? 'על הכל' : 'על שעות בלבד'})`,
-          money.format(-pay.tax))
+          money.format(pay.tax ? -pay.tax : 0))
         : ''}
       ${payRow('pay-net', 'סה״כ לתשלום', money.format(pay.net))}
     </tbody></table></div>`;
@@ -1648,6 +1648,13 @@ $('importFile').addEventListener('change', async () => {
   const newTo = !data.settings.recipient && isText(inc.recipient) ? inc.recipient.trim() : '';
   if (newName) lines.push(`שם בדוח: ${newName}`);
   if (newTo) lines.push(`לכבוד: ${newTo}`);
+  // Pay settings from the file go in only when the app has no value.
+  // The scope goes in only together with the percent, so a scope the user sees does not change.
+  const newHour = data.settings.hourRate == null && posNum(inc.hourRate) ? inc.hourRate : null;
+  const newPct = data.settings.taxPct == null && posNum(inc.taxPct) && inc.taxPct <= 100 ? inc.taxPct : null;
+  const newScope = newPct != null && (inc.taxScope === 'hours' || inc.taxScope === 'all') ? inc.taxScope : null;
+  if (newHour != null) lines.push(`תעריף לשעה: ${money.format(newHour)}`);
+  if (newPct != null) lines.push(`ניכוי מס במקור: ${newPct}% (${newScope === 'all' ? 'על הכל' : 'על שעות בלבד'})`);
   if (dup) lines.push(`(${dup} כבר קיימות ולא ייובאו שוב)`);
   if (bad) lines.push(`(${bad} לא תקינות ולא ייובאו)`);
   lines.push('', 'להוסיף אותן? הנתונים הקיימים לא יימחקו.');
@@ -1662,12 +1669,9 @@ $('importFile').addEventListener('change', async () => {
   }
   if (newName) { data.settings.name = newName; $('rName').value = newName; }
   if (newTo) { data.settings.recipient = newTo; $('rTo').value = newTo; }
-  // הגדרות תשלום מהקובץ: נכנסות רק אם אין לך עדיין ערך באפליקציה.
-  const incPct = inc.taxPct;
-  if (data.settings.hourRate == null && posNum(inc.hourRate)) { data.settings.hourRate = inc.hourRate; $('hourRate').value = inc.hourRate; }
-  if (data.settings.taxPct == null && posNum(incPct) && incPct <= 100) data.settings.taxPct = incPct;
-  if (data.settings.taxScope == null && (inc.taxScope === 'hours' || inc.taxScope === 'all')) { data.settings.taxScope = inc.taxScope; $('taxScope').value = inc.taxScope; }
-  if (data.settings.taxPct === incPct) $('taxPct').value = incPct;
+  if (newHour != null) { data.settings.hourRate = newHour; $('hourRate').value = newHour; }
+  if (newPct != null) { data.settings.taxPct = newPct; $('taxPct').value = newPct; }
+  if (newScope) { data.settings.taxScope = newScope; $('taxScope').value = newScope; }
   save();
 
   const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo, ...upd.map(u => u.next)]
