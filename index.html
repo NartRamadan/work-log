@@ -288,6 +288,9 @@
   }
   .tbl-wrap { overflow-x: auto; }
   .sheet table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .sheet table.pay td:first-child { width: 70%; }
+  .sheet table.pay tr.pay-gross td { border-top: 2px solid var(--p-line); font-weight: 600; }
+  .sheet table.pay tr.pay-net td { font-weight: 700; color: var(--p-accent); font-size: 1.1em; }
   .sheet th, .sheet td {
     padding: 5px 6px; border-bottom: 1px solid var(--p-line);
     text-align: right; vertical-align: top;
@@ -559,6 +562,17 @@
           <label for="rTo">לכבוד</label>
           <input type="text" id="rTo" placeholder="שם המנהל / העסק">
         </div>
+        <div>
+          <label for="taxPct">ניכוי מס במקור (%)</label>
+          <input type="number" id="taxPct" min="0" max="100" step="0.1" inputmode="decimal" placeholder="לדוגמה 3">
+        </div>
+        <div>
+          <label for="taxScope">ניכוי על</label>
+          <select id="taxScope">
+            <option value="hours">שעות בלבד</option>
+            <option value="all">הכל (שעות, נסיעות, הוצאות)</option>
+          </select>
+        </div>
         <div class="full">
           <button class="btn" type="button" id="printBtn">הדפסה / שמירה כ-PDF</button>
           <p class="note">בחלון ההדפסה אפשר לבחור "שמירה כ-PDF" במקום מדפסת.</p>
@@ -623,6 +637,9 @@ const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m;
 const fmtDur = m => `${Math.floor(m / 60)}:${pad(m % 60)}`;
 
 /* ===================== תשלום: שעות וניכוי מס במקור ===================== */
+// טקסט בסדר "משמאל לימין" בתוך עברית (סימני LRI ו-PDI), כדי שמספרים לא יתהפכו.
+// הסימנים נבנים מקוד התו, כדי שלא יהיה בקובץ תו נסתר.
+const ltr = s => String.fromCharCode(0x2066) + s + String.fromCharCode(0x2069);
 // עיגול לאגורות.
 const round2 = n => Math.round(n * 100) / 100;
 // הגדרות התשלום, עם ברירות מחדל. בנתונים ישנים אין את השדות האלה.
@@ -1295,6 +1312,20 @@ $('rName').value = data.settings.name || '';
 $('rTo').value = data.settings.recipient || '';
 $('rName').addEventListener('input', () => { data.settings.name = $('rName').value.trim(); save(); renderReport(); });
 $('rTo').addEventListener('input', () => { data.settings.recipient = $('rTo').value.trim(); save(); renderReport(); });
+// ניכוי מס במקור: אחוז בין 0 ל-100 (לא כולל 0). ערך אחר = אין ניכוי.
+$('taxPct').value = data.settings.taxPct ?? '';
+$('taxPct').addEventListener('change', () => {
+  const v = parseFloat($('taxPct').value);
+  data.settings.taxPct = v > 0 && v <= 100 ? v : null;
+  save();
+  renderReport();
+});
+$('taxScope').value = paySettings().taxScope;
+$('taxScope').addEventListener('change', () => {
+  data.settings.taxScope = $('taxScope').value === 'all' ? 'all' : 'hours';
+  save();
+  renderReport();
+});
 
 // שם הקובץ של ה-PDF נלקח מכותרת הדף, אז משנים אותה לרגע בזמן ההדפסה.
 $('printBtn').addEventListener('click', () => {
@@ -1393,7 +1424,24 @@ function renderReport(chartWidth) {
 
   const kmCost = rate ? totKm * rate : null;
   const expTotal = exps.reduce((a, x) => a + x.amount, 0);
-  const grand = (kmCost || 0) + expTotal;
+  const ps = paySettings();
+  const pay = payBreakdown({ minutes: totMin, hourRate: ps.hourRate, kmCost, expTotal, taxPct: ps.taxPct, taxScope: ps.taxScope });
+  const payRow = (cls, label, value) => `<tr class="${cls}"><td>${label}</td><td class="n">${value}</td></tr>`;
+  const payHtml = `
+    <h4>תשלום</h4>
+    <div class="tbl-wrap"><table class="pay" id="payBlock"><tbody>
+      ${ps.hourRate
+        ? payRow('pay-hours', `שעות: ${ltr(`${fmtDur(totMin)} × ${money.format(ps.hourRate)}`)} לשעה`, money.format(pay.hoursPay))
+        : payRow('pay-hours', 'שעות: לא הוזן תעריף לשעה', '—')}
+      ${payRow('pay-km', 'החזר נסיעות', money.format(kmCost || 0))}
+      ${payRow('pay-exp', 'הוצאות', money.format(expTotal))}
+      ${payRow('pay-gross', 'סה״כ לפני ניכוי (סכום לקבלה)', money.format(pay.gross))}
+      ${ps.taxPct
+        ? payRow('pay-tax', `ניכוי מס במקור ${ltr(`${ps.taxPct}%`)} (${ps.taxScope === 'all' ? 'על הכל' : 'על שעות בלבד'})`,
+          money.format(-pay.tax))
+        : ''}
+      ${payRow('pay-net', 'סה״כ לתשלום', money.format(pay.net))}
+    </tbody></table></div>`;
   const workDays = new Set(shifts.filter(s => shiftMinutes(s) > 0).map(s => s.date)).size;
 
   // שני גרפים: שעות וק"מ לפי יום, עם קו ממוצע. גרף בלי נתונים לא מוצג.
@@ -1466,7 +1514,7 @@ function renderReport(chartWidth) {
       <div class="sum"><b>${fmtKm(totKm)}</b><span>ק״מ</span></div>
       <div class="sum"><b>${kmCost !== null ? money.format(kmCost) : '—'}</b><span>${rate ? 'החזר נסיעות' : 'לא הוזן תעריף'}</span></div>
       <div class="sum"><b>${money.format(expTotal)}</b><span>הוצאות</span></div>
-      <div class="sum total"><b>${money.format(grand)}</b><span>סה״כ להחזר</span></div>
+      <div class="sum total"><b>${money.format(pay.net)}</b><span>סה״כ לתשלום</span></div>
     </div>
 
     ${splitHtml}
@@ -1488,6 +1536,8 @@ function renderReport(chartWidth) {
       <tbody>${expRows}</tbody>
       <tfoot><tr><td>סה״כ</td><td></td><td class="n">${money.format(expTotal)}</td></tr></tfoot>
     </table></div>` : '<div class="calc">אין הוצאות בחודש הזה.</div>'}
+
+    ${payHtml}
 
     <div class="sign">
       <div>חתימת העובד ותאריך</div>
@@ -1616,7 +1666,8 @@ $('importFile').addEventListener('change', async () => {
   const incPct = inc.taxPct;
   if (data.settings.hourRate == null && posNum(inc.hourRate)) { data.settings.hourRate = inc.hourRate; $('hourRate').value = inc.hourRate; }
   if (data.settings.taxPct == null && posNum(incPct) && incPct <= 100) data.settings.taxPct = incPct;
-  if (data.settings.taxScope == null && (inc.taxScope === 'hours' || inc.taxScope === 'all')) data.settings.taxScope = inc.taxScope;
+  if (data.settings.taxScope == null && (inc.taxScope === 'hours' || inc.taxScope === 'all')) { data.settings.taxScope = inc.taxScope; $('taxScope').value = inc.taxScope; }
+  if (data.settings.taxPct === incPct) $('taxPct').value = incPct;
   save();
 
   const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo, ...upd.map(u => u.next)]
