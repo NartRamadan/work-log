@@ -136,6 +136,7 @@
     display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0;
   }
   .total-box { background: var(--accent-soft); border-radius: 10px; padding: 10px; text-align: center; }
+  .total-box.wide { grid-column: 1 / -1; }
   .total-box b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
   .total-box span { font-size: 13px; color: var(--muted); }
   ul.list { list-style: none; margin: 0; padding: 0; }
@@ -287,6 +288,9 @@
   }
   .tbl-wrap { overflow-x: auto; }
   .sheet table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .sheet table.pay td:first-child { width: 70%; }
+  .sheet table.pay tr.pay-gross td { border-top: 2px solid var(--p-line); font-weight: 600; }
+  .sheet table.pay tr.pay-net td { font-weight: 700; color: var(--p-accent); font-size: 1.1em; }
   .sheet th, .sheet td {
     padding: 5px 6px; border-bottom: 1px solid var(--p-line);
     text-align: right; vertical-align: top;
@@ -410,9 +414,14 @@
 
     <div class="card">
       <h2>משמרות</h2>
+      <div class="rate-row">
+        <input type="number" id="hourRate" min="0" step="0.01" inputmode="decimal" placeholder="לדוגמה 80" aria-label="תעריף לשעה">
+        <span>₪ לשעה</span>
+      </div>
       <div class="totals">
         <div class="total-box"><b id="totHours">0:00</b><span>שעות בחודש</span></div>
         <div class="total-box"><b id="totDays">0</b><span>ימי עבודה</span></div>
+        <div class="total-box wide"><b id="totPay">—</b><span id="totPayLabel">הזן תעריף למעלה</span></div>
       </div>
       <ul class="list" id="shiftList"></ul>
     </div>
@@ -553,6 +562,17 @@
           <label for="rTo">לכבוד</label>
           <input type="text" id="rTo" placeholder="שם המנהל / העסק">
         </div>
+        <div>
+          <label for="taxPct">ניכוי מס במקור (%)</label>
+          <input type="number" id="taxPct" min="0" max="100" step="0.1" inputmode="decimal" placeholder="לדוגמה 3">
+        </div>
+        <div>
+          <label for="taxScope">ניכוי על</label>
+          <select id="taxScope">
+            <option value="hours">שעות בלבד</option>
+            <option value="all">הכל (שעות, נסיעות, הוצאות)</option>
+          </select>
+        </div>
         <div class="full">
           <button class="btn" type="button" id="printBtn">הדפסה / שמירה כ-PDF</button>
           <p class="note">בחלון ההדפסה אפשר לבחור "שמירה כ-PDF" במקום מדפסת.</p>
@@ -587,7 +607,9 @@ const KEY = 'worklog-v1';
 const HOME = 'בית';
 
 function emptyData() {
-  return { shifts: [], trips: [], expenses: [], odo: [], settings: { kmRate: null } };
+  return { shifts: [], trips: [], expenses: [], odo: [],
+    // taxScope: null = the user did not select a value. paySettings() then returns 'hours'.
+    settings: { kmRate: null, hourRate: null, taxPct: null, taxScope: null } };
 }
 function load() {
   try {
@@ -613,6 +635,27 @@ const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 const timeStr = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const fmtDur = m => `${Math.floor(m / 60)}:${pad(m % 60)}`;
+
+/* ===================== Pay: hours and tax withholding ===================== */
+// Put text between LRI and PDI marks, so numbers stay left-to-right inside Hebrew text.
+// The marks are made from their character codes, so the file has no hidden characters.
+const ltr = s => String.fromCharCode(0x2066) + s + String.fromCharCode(0x2069);
+// Round to agorot (2 decimals). EPSILON corrects values such as 1.005.
+const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+// Pay settings with defaults. Old saved data does not have these fields.
+const paySettings = () => ({
+  hourRate: data.settings.hourRate ?? null,
+  taxPct: data.settings.taxPct ?? null,
+  taxScope: data.settings.taxScope === 'all' ? 'all' : 'hours',
+});
+// Pay for the month. Scope 'hours': withholding on the hours pay only. Scope 'all': on the full sum.
+function payBreakdown({ minutes, hourRate, kmCost, expTotal, taxPct, taxScope }) {
+  const hoursPay = round2(minutes / 60 * (hourRate || 0));
+  const gross = round2(hoursPay + (kmCost || 0) + (expTotal || 0));
+  const taxBase = taxScope === 'all' ? gross : hoursPay;
+  const tax = round2(taxBase * (taxPct || 0) / 100);
+  return { hoursPay, gross, taxBase, tax, net: round2(gross - tax) };
+}
 // טווח שעות בתוך טקסט עברי: מסמנים "משמאל לימין" כדי שהדפדפן לא יהפוך את הסדר (17:12–17:11).
 const timeRange = (a, b) => `⁦${a}–${b}⁩`;
 const fmtKm = n => n.toLocaleString('he-IL', { maximumFractionDigits: 1 });
@@ -744,7 +787,11 @@ function renderShifts() {
     .filter(s => s.date.startsWith(monthPrefix()))
     .sort((a, b) => (b.date + b.in).localeCompare(a.date + a.in));
 
-  $('totHours').textContent = fmtDur(shifts.reduce((a, s) => a + shiftMinutes(s), 0));
+  const monthMin = shifts.reduce((a, s) => a + shiftMinutes(s), 0);
+  $('totHours').textContent = fmtDur(monthMin);
+  const { hourRate } = paySettings();
+  $('totPay').textContent = hourRate ? money.format(payBreakdown({ minutes: monthMin, hourRate }).hoursPay) : '—';
+  $('totPayLabel').textContent = hourRate ? `לפי ${money.format(hourRate)} לשעה` : 'הזן תעריף למעלה';
   // יום עבודה = יום עם משמרת פתוחה או משמרת של יותר מ-0 דקות.
   $('totDays').textContent = new Set(shifts.filter(s => !s.out || shiftMinutes(s) > 0).map(s => s.date)).size;
 
@@ -771,6 +818,15 @@ $('kmRate').addEventListener('change', () => {
   data.settings.kmRate = v > 0 ? v : null;
   save();
   renderTrips();
+});
+
+$('hourRate').value = data.settings.hourRate ?? '';
+$('hourRate').addEventListener('change', () => {
+  const v = parseFloat($('hourRate').value);
+  data.settings.hourRate = v > 0 ? v : null;
+  save();
+  renderShifts();
+  renderReport();
 });
 
 /* ===================== נסיעות ===================== */
@@ -1256,6 +1312,20 @@ $('rName').value = data.settings.name || '';
 $('rTo').value = data.settings.recipient || '';
 $('rName').addEventListener('input', () => { data.settings.name = $('rName').value.trim(); save(); renderReport(); });
 $('rTo').addEventListener('input', () => { data.settings.recipient = $('rTo').value.trim(); save(); renderReport(); });
+// Tax withholding: a percent above 0 and not more than 100. Any other value = no withholding.
+$('taxPct').value = data.settings.taxPct ?? '';
+$('taxPct').addEventListener('change', () => {
+  const v = parseFloat($('taxPct').value);
+  data.settings.taxPct = v > 0 && v <= 100 ? v : null;
+  save();
+  renderReport();
+});
+$('taxScope').value = paySettings().taxScope;
+$('taxScope').addEventListener('change', () => {
+  data.settings.taxScope = $('taxScope').value === 'all' ? 'all' : 'hours';
+  save();
+  renderReport();
+});
 
 // שם הקובץ של ה-PDF נלקח מכותרת הדף, אז משנים אותה לרגע בזמן ההדפסה.
 $('printBtn').addEventListener('click', () => {
@@ -1352,9 +1422,26 @@ function renderReport(chartWidth) {
   }
   closeWeek();
 
-  const kmCost = rate ? totKm * rate : null;
+  const kmCost = rate ? round2(totKm * rate) : null;
   const expTotal = exps.reduce((a, x) => a + x.amount, 0);
-  const grand = (kmCost || 0) + expTotal;
+  const ps = paySettings();
+  const pay = payBreakdown({ minutes: totMin, hourRate: ps.hourRate, kmCost, expTotal, taxPct: ps.taxPct, taxScope: ps.taxScope });
+  const payRow = (cls, label, value) => `<tr class="${cls}"><td>${label}</td><td class="n">${value}</td></tr>`;
+  const payHtml = `
+    <h4>תשלום</h4>
+    <div class="tbl-wrap"><table class="pay" id="payBlock"><tbody>
+      ${ps.hourRate
+        ? payRow('pay-hours', `שעות: ${ltr(`${fmtDur(totMin)} × ${money.format(ps.hourRate)}`)} לשעה`, money.format(pay.hoursPay))
+        : payRow('pay-hours', 'שעות: לא הוזן תעריף לשעה', '—')}
+      ${rate ? payRow('pay-km', 'החזר נסיעות', money.format(kmCost)) : payRow('pay-km', 'החזר נסיעות: לא הוזן תעריף לק״מ', '—')}
+      ${payRow('pay-exp', 'הוצאות', money.format(expTotal))}
+      ${payRow('pay-gross', 'סה״כ לפני ניכוי (סכום לקבלה)', money.format(pay.gross))}
+      ${ps.taxPct
+        ? payRow('pay-tax', `ניכוי מס במקור ${ltr(`${ps.taxPct}%`)} (${ps.taxScope === 'all' ? 'על הכל' : 'על שעות בלבד'})`,
+          money.format(pay.tax ? -pay.tax : 0))
+        : ''}
+      ${payRow('pay-net', 'סה״כ לתשלום', money.format(pay.net))}
+    </tbody></table></div>`;
   const workDays = new Set(shifts.filter(s => shiftMinutes(s) > 0).map(s => s.date)).size;
 
   // שני גרפים: שעות וק"מ לפי יום, עם קו ממוצע. גרף בלי נתונים לא מוצג.
@@ -1427,7 +1514,7 @@ function renderReport(chartWidth) {
       <div class="sum"><b>${fmtKm(totKm)}</b><span>ק״מ</span></div>
       <div class="sum"><b>${kmCost !== null ? money.format(kmCost) : '—'}</b><span>${rate ? 'החזר נסיעות' : 'לא הוזן תעריף'}</span></div>
       <div class="sum"><b>${money.format(expTotal)}</b><span>הוצאות</span></div>
-      <div class="sum total"><b>${money.format(grand)}</b><span>סה״כ להחזר</span></div>
+      <div class="sum total"><b>${money.format(pay.net)}</b><span>סה״כ לתשלום</span></div>
     </div>
 
     ${splitHtml}
@@ -1449,6 +1536,8 @@ function renderReport(chartWidth) {
       <tbody>${expRows}</tbody>
       <tfoot><tr><td>סה״כ</td><td></td><td class="n">${money.format(expTotal)}</td></tr></tfoot>
     </table></div>` : '<div class="calc">אין הוצאות בחודש הזה.</div>'}
+
+    ${payHtml}
 
     <div class="sign">
       <div>חתימת העובד ותאריך</div>
@@ -1559,6 +1648,13 @@ $('importFile').addEventListener('change', async () => {
   const newTo = !data.settings.recipient && isText(inc.recipient) ? inc.recipient.trim() : '';
   if (newName) lines.push(`שם בדוח: ${newName}`);
   if (newTo) lines.push(`לכבוד: ${newTo}`);
+  // Pay settings from the file go in only when the app has no value.
+  // The scope goes in only together with the percent, so a scope the user sees does not change.
+  const newHour = data.settings.hourRate == null && posNum(inc.hourRate) ? inc.hourRate : null;
+  const newPct = data.settings.taxPct == null && posNum(inc.taxPct) && inc.taxPct <= 100 ? inc.taxPct : null;
+  const newScope = newPct != null && (inc.taxScope === 'hours' || inc.taxScope === 'all') ? inc.taxScope : null;
+  if (newHour != null) lines.push(`תעריף לשעה: ${money.format(newHour)}`);
+  if (newPct != null) lines.push(`ניכוי מס במקור: ${newPct}% (${newScope === 'all' ? 'על הכל' : 'על שעות בלבד'})`);
   if (dup) lines.push(`(${dup} כבר קיימות ולא ייובאו שוב)`);
   if (bad) lines.push(`(${bad} לא תקינות ולא ייובאו)`);
   lines.push('', 'להוסיף אותן? הנתונים הקיימים לא יימחקו.');
@@ -1573,6 +1669,9 @@ $('importFile').addEventListener('change', async () => {
   }
   if (newName) { data.settings.name = newName; $('rName').value = newName; }
   if (newTo) { data.settings.recipient = newTo; $('rTo').value = newTo; }
+  if (newHour != null) { data.settings.hourRate = newHour; $('hourRate').value = newHour; }
+  if (newPct != null) { data.settings.taxPct = newPct; $('taxPct').value = newPct; }
+  if (newScope) { data.settings.taxScope = newScope; $('taxScope').value = newScope; }
   save();
 
   const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo, ...upd.map(u => u.next)]
