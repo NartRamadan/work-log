@@ -136,6 +136,7 @@
     display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0;
   }
   .total-box { background: var(--accent-soft); border-radius: 10px; padding: 10px; text-align: center; }
+  .total-box.wide { grid-column: 1 / -1; }
   .total-box b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
   .total-box span { font-size: 13px; color: var(--muted); }
   ul.list { list-style: none; margin: 0; padding: 0; }
@@ -410,9 +411,14 @@
 
     <div class="card">
       <h2>משמרות</h2>
+      <div class="rate-row">
+        <input type="number" id="hourRate" min="0" step="0.01" inputmode="decimal" placeholder="לדוגמה 80" aria-label="תעריף לשעה">
+        <span>₪ לשעה</span>
+      </div>
       <div class="totals">
         <div class="total-box"><b id="totHours">0:00</b><span>שעות בחודש</span></div>
         <div class="total-box"><b id="totDays">0</b><span>ימי עבודה</span></div>
+        <div class="total-box wide"><b id="totPay">—</b><span id="totPayLabel">הזן תעריף למעלה</span></div>
       </div>
       <ul class="list" id="shiftList"></ul>
     </div>
@@ -764,7 +770,11 @@ function renderShifts() {
     .filter(s => s.date.startsWith(monthPrefix()))
     .sort((a, b) => (b.date + b.in).localeCompare(a.date + a.in));
 
-  $('totHours').textContent = fmtDur(shifts.reduce((a, s) => a + shiftMinutes(s), 0));
+  const monthMin = shifts.reduce((a, s) => a + shiftMinutes(s), 0);
+  $('totHours').textContent = fmtDur(monthMin);
+  const { hourRate } = paySettings();
+  $('totPay').textContent = hourRate ? money.format(payBreakdown({ minutes: monthMin, hourRate }).hoursPay) : '—';
+  $('totPayLabel').textContent = hourRate ? `לפי ${money.format(hourRate)} לשעה` : 'הזן תעריף למעלה';
   // יום עבודה = יום עם משמרת פתוחה או משמרת של יותר מ-0 דקות.
   $('totDays').textContent = new Set(shifts.filter(s => !s.out || shiftMinutes(s) > 0).map(s => s.date)).size;
 
@@ -791,6 +801,15 @@ $('kmRate').addEventListener('change', () => {
   data.settings.kmRate = v > 0 ? v : null;
   save();
   renderTrips();
+});
+
+$('hourRate').value = data.settings.hourRate ?? '';
+$('hourRate').addEventListener('change', () => {
+  const v = parseFloat($('hourRate').value);
+  data.settings.hourRate = v > 0 ? v : null;
+  save();
+  renderShifts();
+  renderReport();
 });
 
 /* ===================== נסיעות ===================== */
@@ -1595,7 +1614,7 @@ $('importFile').addEventListener('change', async () => {
   if (newTo) { data.settings.recipient = newTo; $('rTo').value = newTo; }
   // הגדרות תשלום מהקובץ: נכנסות רק אם אין לך עדיין ערך באפליקציה.
   const incPct = inc.taxPct;
-  if (data.settings.hourRate == null && posNum(inc.hourRate)) data.settings.hourRate = inc.hourRate;
+  if (data.settings.hourRate == null && posNum(inc.hourRate)) { data.settings.hourRate = inc.hourRate; $('hourRate').value = inc.hourRate; }
   if (data.settings.taxPct == null && posNum(incPct) && incPct <= 100) data.settings.taxPct = incPct;
   if (data.settings.taxScope == null && (inc.taxScope === 'hours' || inc.taxScope === 'all')) data.settings.taxScope = inc.taxScope;
   save();

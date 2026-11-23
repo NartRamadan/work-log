@@ -72,3 +72,33 @@ test('import sets empty pay settings and keeps existing ones', async ({ page }) 
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => paySettings())).toEqual({ hourRate: 120, taxPct: 3, taxScope: 'hours' });
 });
+
+// Set a number field and fire "change", like a user who leaves the field.
+async function setField(page, sel, value) {
+  await page.locator(sel).fill(value);
+  await page.locator(sel).dispatchEvent('change');
+}
+
+test.describe('Hours tab', () => {
+  test('shows the month pay', async ({ page }) => {
+    await openWith(page, null);
+    await page.getByText('שכחת ללחוץ? הזנה ידנית').click();
+    await page.locator('#mIn').fill('08:00');
+    await page.locator('#mOut').fill('14:05');
+    await page.locator('#manualForm button[type="submit"]').click();
+    await setField(page, '#hourRate', '100');
+    const [pay, rate] = await page.evaluate(() => [money.format(608.33), money.format(100)]);
+    await expect(page.locator('#totPay')).toHaveText(pay);
+    await expect(page.locator('#totPayLabel')).toContainText(rate);
+  });
+
+  test('a bad rate is ignored', async ({ page }) => {
+    await openWith(page, null);
+    for (const v of ['', '0', '-5']) {
+      await setField(page, '#hourRate', '100');
+      await setField(page, '#hourRate', v);
+      await expect(page.locator('#totPay')).toHaveText('—');
+      expect(await page.evaluate(() => paySettings().hourRate)).toBeNull();
+    }
+  });
+});
