@@ -587,7 +587,9 @@ const KEY = 'worklog-v1';
 const HOME = 'בית';
 
 function emptyData() {
-  return { shifts: [], trips: [], expenses: [], odo: [], settings: { kmRate: null } };
+  return { shifts: [], trips: [], expenses: [], odo: [],
+    // taxScope: null = המשתמש עוד לא בחר. paySettings() מחזיר אז 'hours'.
+    settings: { kmRate: null, hourRate: null, taxPct: null, taxScope: null } };
 }
 function load() {
   try {
@@ -613,6 +615,24 @@ const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 const timeStr = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const fmtDur = m => `${Math.floor(m / 60)}:${pad(m % 60)}`;
+
+/* ===================== תשלום: שעות וניכוי מס במקור ===================== */
+// עיגול לאגורות.
+const round2 = n => Math.round(n * 100) / 100;
+// הגדרות התשלום, עם ברירות מחדל. בנתונים ישנים אין את השדות האלה.
+const paySettings = () => ({
+  hourRate: data.settings.hourRate ?? null,
+  taxPct: data.settings.taxPct ?? null,
+  taxScope: data.settings.taxScope === 'all' ? 'all' : 'hours',
+});
+// חישוב התשלום לחודש. ניכוי על "שעות" = רק על התשלום לשעות. ניכוי על "הכל" = על כל הסכום.
+function payBreakdown({ minutes, hourRate, kmCost, expTotal, taxPct, taxScope }) {
+  const hoursPay = round2(minutes / 60 * (hourRate || 0));
+  const gross = round2(hoursPay + (kmCost || 0) + (expTotal || 0));
+  const taxBase = taxScope === 'all' ? gross : hoursPay;
+  const tax = round2(taxBase * (taxPct || 0) / 100);
+  return { hoursPay, gross, taxBase, tax, net: round2(gross - tax) };
+}
 // טווח שעות בתוך טקסט עברי: מסמנים "משמאל לימין" כדי שהדפדפן לא יהפוך את הסדר (17:12–17:11).
 const timeRange = (a, b) => `⁦${a}–${b}⁩`;
 const fmtKm = n => n.toLocaleString('he-IL', { maximumFractionDigits: 1 });
@@ -1573,6 +1593,11 @@ $('importFile').addEventListener('change', async () => {
   }
   if (newName) { data.settings.name = newName; $('rName').value = newName; }
   if (newTo) { data.settings.recipient = newTo; $('rTo').value = newTo; }
+  // הגדרות תשלום מהקובץ: נכנסות רק אם אין לך עדיין ערך באפליקציה.
+  const incPct = inc.taxPct;
+  if (data.settings.hourRate == null && posNum(inc.hourRate)) data.settings.hourRate = inc.hourRate;
+  if (data.settings.taxPct == null && posNum(incPct) && incPct <= 100) data.settings.taxPct = incPct;
+  if (data.settings.taxScope == null && (inc.taxScope === 'hours' || inc.taxScope === 'all')) data.settings.taxScope = inc.taxScope;
   save();
 
   const first = [...add.shifts, ...add.trips, ...add.expenses, ...add.odo, ...upd.map(u => u.next)]
