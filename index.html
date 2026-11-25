@@ -1596,12 +1596,44 @@ const importRules = {
 // Content key: two records with the same key are the same record, also with different ids.
 // Example: the phone has a day with its own ids, and a file from the computer has the same day.
 // km is not in the trip key, so a trip without km on the phone is not added again from a file.
+// str() also works on a broken record in the app (for example, a trip without "from").
+const str = v => String(v ?? '').trim();
 const contentKey = {
-  shifts: s => [s.date, s.in, s.out].join('|'),
-  trips: t => [t.date, t.from.trim(), t.to.trim()].join('|'),
-  expenses: x => [x.date, x.amount, x.desc.trim()].join('|'),
+  shifts: s => [s.date, s.in, s.out ?? ''].join('|'), // an open shift has no "out"
+  trips: t => [t.date, str(t.from), str(t.to)].join('|'),
+  expenses: x => [x.date, x.amount, str(x.desc)].join('|'),
   odo: o => o.date, // one odometer record for each day
 };
+
+// The fields that a same record from the file can add to the app record.
+// The file never changes a value that the app already has.
+const completeWith = {
+  shifts: (cur, r) => (cur.out == null ? { out: r.out } : {}), // close an open shift
+  trips: (cur, r) => (cur.km == null && r.km != null ? { km: r.km } : {}),
+  expenses: () => ({}),
+  odo: (cur, r) => {
+    const start = cur.start ?? r.start ?? null, end = cur.end ?? r.end ?? null;
+    if (start != null && end != null && end <= start) return {}; // the result is not valid: keep the app value
+    const c = {};
+    if (cur.start == null && start != null) c.start = start;
+    if (cur.end == null && end != null) c.end = end;
+    return c;
+  },
+};
+
+// Find the app record that is the same as the file record. Remove it from the pool, so it matches one time.
+// Odometer records stay in the pool: a day has only one odometer record.
+function takeMatch(kind, pool, r) {
+  let list = pool.get(contentKey[kind](r));
+  // A shift that is still open on the phone: same day and same start.
+  if (!(list && list.length) && kind === 'shifts') list = pool.get(contentKey.shifts({ ...r, out: null }));
+  if (!(list && list.length)) return null;
+  // Trip: first a trip with the same km, then a trip without km, then any trip.
+  let i = kind === 'trips' ? list.findIndex(x => x.km === r.km) : 0;
+  if (i < 0) i = list.findIndex(x => x.km == null);
+  if (i < 0) i = 0;
+  return kind === 'odo' ? list[i] : list.splice(i, 1)[0];
+}
 
 $('importFile').addEventListener('change', async () => {
   const input = $('importFile');
@@ -1622,16 +1654,17 @@ $('importFile').addEventListener('change', async () => {
   for (const kind of Object.keys(add)) {
     const list = Array.isArray(incoming[kind]) ? incoming[kind] : [];
     const have = new Set(data[kind].map(r => r.id));
-    // How many times each content key is in the app. Each match uses one,
+    // Pool: the app records by content key. Each match uses one record,
     // so two same trips in the file and one in the app give one new trip.
-    // A record that the file has with the same id is matched by id, so it is not counted here.
-    // Odometer: all days are counted, because a day can have only one odometer record.
-    const fileIds = new Set(list.filter(r => r && r.id).map(r => String(r.id)));
-    const left = new Map();
-    data[kind].filter(r => kind === 'odo' || !fileIds.has(r.id))
-      .forEach(r => { const k = contentKey[kind](r); left.set(k, (left.get(k) || 0) + 1); });
+    // An app record that a valid file record has with the same id is matched by id, so it is not in the pool.
+    // Odometer: all days are in the pool, because a day can have only one odometer record.
+    const valid = r => r && typeof r === 'object' && importRules[kind].ok(r);
+    const fileIds = new Set(list.filter(r => valid(r) && r.id).map(r => String(r.id)));
+    const pool = new Map();
+    const put = rec => { const k = contentKey[kind](rec); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(rec); };
+    data[kind].filter(r => kind === 'odo' || !fileIds.has(r.id)).forEach(put);
     list.forEach((r, i) => {
-      if (!r || typeof r !== 'object' || !importRules[kind].ok(r)) { bad++; return; }
+      if (!valid(r)) { bad++; return; }
       const id = r.id ? String(r.id) : uid();
       if (have.has(id)) {
         // כבר יובא בעבר. אם בקובץ יש גרסה שונה - נעדכן. אם זהה - מדלגים.
@@ -1641,16 +1674,19 @@ $('importFile').addEventListener('change', async () => {
         else dup++;
         return;
       }
-      const key = contentKey[kind](r);
-      if (left.get(key) > 0) {
-        // Odometer: one record for each day, so the match is not used up.
-        if (kind !== 'odo') left.set(key, left.get(key) - 1);
-        dup++;
+      const rec = importRules[kind].pick(r, i);
+      const cur = takeMatch(kind, pool, rec);
+      if (cur) {
+        // The same record is in the app. Add only the fields that the app record does not have.
+        const changes = completeWith[kind](cur, rec);
+        if (Object.keys(changes).length) upd.push({ cur, next: { date: cur.date, ...changes } });
+        else dup++;
         return;
       }
-      if (kind === 'odo') left.set(key, 1); // a second odometer record for this day in the file is a duplicate
       have.add(id);
-      add[kind].push({ id, ...importRules[kind].pick(r, i) });
+      add[kind].push({ id, ...rec });
+      // A second same shift or odometer day in the file is a duplicate. Trips and expenses can repeat on one day.
+      if (kind === 'shifts' || kind === 'odo') put(add[kind][add[kind].length - 1]);
     });
   }
 
