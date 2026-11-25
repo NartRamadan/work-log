@@ -587,7 +587,7 @@
     <details>
       <summary>גיבוי ונתונים</summary>
       <p class="note">הנתונים נשמרים רק בדפדפן הזה. כדאי לשמור גיבוי לקובץ מדי פעם.
-        ייבוא מוסיף רשומות חדשות ולא מוחק את מה שכבר יש.</p>
+        ייבוא מוסיף רשומות חדשות ולא מוחק את מה שכבר יש. רשומה שכבר קיימת לא נוספת שוב.</p>
       <div class="btn-row">
         <button class="btn secondary" type="button" id="exportBtn">ייצוא לקובץ</button>
         <button class="btn secondary" type="button" id="importBtn">ייבוא מקובץ</button>
@@ -1593,6 +1593,16 @@ const importRules = {
   },
 };
 
+// Content key: two records with the same key are the same record, also with different ids.
+// Example: the phone has a day with its own ids, and a file from the computer has the same day.
+// km is not in the trip key, so a trip without km on the phone is not added again from a file.
+const contentKey = {
+  shifts: s => [s.date, s.in, s.out].join('|'),
+  trips: t => [t.date, t.from.trim(), t.to.trim()].join('|'),
+  expenses: x => [x.date, x.amount, x.desc.trim()].join('|'),
+  odo: o => o.date, // one odometer record for each day
+};
+
 $('importFile').addEventListener('change', async () => {
   const input = $('importFile');
   const file = input.files[0];
@@ -1612,7 +1622,14 @@ $('importFile').addEventListener('change', async () => {
   for (const kind of Object.keys(add)) {
     const list = Array.isArray(incoming[kind]) ? incoming[kind] : [];
     const have = new Set(data[kind].map(r => r.id));
-    const odoDates = new Set(data.odo.map(o => o.date)); // מד אוץ: רק רשומה אחת לכל יום
+    // How many times each content key is in the app. Each match uses one,
+    // so two same trips in the file and one in the app give one new trip.
+    // A record that the file has with the same id is matched by id, so it is not counted here.
+    // Odometer: all days are counted, because a day can have only one odometer record.
+    const fileIds = new Set(list.filter(r => r && r.id).map(r => String(r.id)));
+    const left = new Map();
+    data[kind].filter(r => kind === 'odo' || !fileIds.has(r.id))
+      .forEach(r => { const k = contentKey[kind](r); left.set(k, (left.get(k) || 0) + 1); });
     list.forEach((r, i) => {
       if (!r || typeof r !== 'object' || !importRules[kind].ok(r)) { bad++; return; }
       const id = r.id ? String(r.id) : uid();
@@ -1624,7 +1641,14 @@ $('importFile').addEventListener('change', async () => {
         else dup++;
         return;
       }
-      if (kind === 'odo') { if (odoDates.has(r.date)) { dup++; return; } odoDates.add(r.date); }
+      const key = contentKey[kind](r);
+      if (left.get(key) > 0) {
+        // Odometer: one record for each day, so the match is not used up.
+        if (kind !== 'odo') left.set(key, left.get(key) - 1);
+        dup++;
+        return;
+      }
+      if (kind === 'odo') left.set(key, 1); // a second odometer record for this day in the file is a duplicate
       have.add(id);
       add[kind].push({ id, ...importRules[kind].pick(r, i) });
     });
